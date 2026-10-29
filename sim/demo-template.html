@@ -1,0 +1,1882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bounded Options — BTC/ETH protection tickets on live prices</title>
+<style>
+  /* Derive's own typeface: Geist for the interface, Geist Mono for every
+     figure. Both are variable, latin subset, SIL OFL 1.1 (demo/fonts/OFL.txt),
+     served from this folder so the screen renders the real face offline. */
+  @font-face{font-family:"Geist";src:url("fonts/geist-latin.woff2") format("woff2");
+    font-weight:400 700;font-style:normal;font-display:swap}
+  @font-face{font-family:"Geist Mono";src:url("fonts/geist-mono-latin.woff2") format("woff2");
+    font-weight:400 600;font-style:normal;font-display:swap}
+  :root {
+    /* Data terminal (tasteskill, seed 520067027): cards darker than the
+       ground, one accent used only as a 1px line, colour on data alone. */
+    --ground:#171719; --panel:#131217; --panel-2:#1b1a1f; --raised:#212023;
+    --line:#222224; --line-2:#3a3a3e; --rule:#1b1a1f;
+    --ink:#ffffff; --dim:#9a9da3; --dim-2:#8a8c92;
+    --bid:#e5566f; --ask:#44a282; --accent:#4a8ad6; --warn:#d9a441;
+    --row:#131217; --row-hi:#1f1e23; --surface:#131217;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"Geist",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--ground);color:var(--ink);font:13px/1.45 var(--sans);
+    display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .pos{color:var(--ask)} .neg{color:var(--bid)} .dim{color:var(--dim)}
+  button{font:inherit;font-variant-numeric:tabular-nums;color:inherit;background:none;border:0;cursor:pointer}
+  h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
+  /* A figure that moved on the last frame is marked briefly: the screen's
+     motion is the market's, not a decoration. Kept faint because a third of
+     the chain is always mid-flash in a live book. */
+  @keyframes up{from{background:rgba(68,162,130,.13)}to{background:transparent}}
+  @keyframes down{from{background:rgba(229,86,111,.13)}to{background:transparent}}
+  .tick-up{animation:up .3s linear} .tick-down{animation:down .3s linear}
+  @media (prefers-reduced-motion:reduce){.tick-up,.tick-down{animation:none}}
+
+  .topbar{height:48px;flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:0 20px;
+    background:var(--panel);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;letter-spacing:-.01em}
+  .brand .mark{width:16px;height:16px;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;flex:0 0 auto}
+  .brand .mark i{display:block}
+  .brand .mark i:first-child{background:var(--ask)}
+  .brand .mark i:last-child{background:var(--bid)}
+  .nav{display:flex;gap:4px}
+  .nav button{padding:6px 10px;color:var(--dim);font-size:13px;position:relative}
+  .nav button:hover{color:var(--ink)}
+  .nav button[aria-selected="true"]{color:var(--ink)}
+  /* the style's move: every selection is the same 1px accent line, as wide as its label */
+  .nav button[aria-selected="true"]::after,.chip[aria-selected="true"]::after,
+  .bottom .tabs button[aria-selected="true"]::after,.rtabs button[aria-selected="true"]::after{
+    content:"";position:absolute;left:10px;right:10px;bottom:-7px;height:1px;background:var(--accent)}
+  .nav .off{color:var(--dim-2);cursor:default}
+  .nav .off:hover{color:var(--dim-2)}
+  .grow{flex:1}
+  .connect{padding:6px 14px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink);
+    font-size:13px;white-space:nowrap}
+  .connect:hover{border-color:var(--accent)}
+  .index{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+  .index .sym{color:var(--dim);font-size:12px}
+  .index .px{font-family:var(--mono);font-size:15px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+  .index .chg{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .index .chg.pos{color:var(--ask)} .index .chg.neg{color:var(--bid)}
+  .iconbtn{width:30px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--dim);
+    border:1px solid var(--line-2);font-size:12px}
+  .iconbtn:hover{color:var(--ink);border-color:var(--accent)}
+
+  .banner{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:6px 20px;background:var(--panel);
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden}
+  .banner b{color:var(--ink);font-weight:500}
+  .banner > span{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;white-space:nowrap}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--dim-2);display:inline-block;flex:0 0 auto}
+  .dot.live{background:var(--ask)}
+  .dot.degraded{background:var(--warn)} .dot.stale,.dot.offline{background:var(--bid)}
+
+  .tape{flex:0 0 auto;display:flex;gap:24px;padding:5px 20px;background:var(--panel);
+    border-bottom:1px solid var(--line);color:var(--dim);font-size:12px;overflow:hidden;
+    font-family:var(--mono);white-space:nowrap}
+  /* Each print keeps its own ellipsis so a long line is cut inside the margin
+     instead of running under the screen edge. */
+  .tape span{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+  .tape span b{color:var(--ink);font-weight:500}
+  .tape span i{color:var(--dim-2);font-style:normal;margin-right:6px}
+  .tape b.buy{color:var(--ask);font-weight:500} .tape b.sell{color:var(--bid);font-weight:500}
+  .app{flex:1;min-height:0;display:grid;grid-template-columns:158px minmax(0,1fr) 372px}
+  .rail{border-right:1px solid var(--line);background:var(--panel);padding:10px 8px;overflow:auto;
+    display:flex;flex-direction:column}
+  .rail .grp{margin:14px 0 4px;padding:0 10px;font-size:12px;color:var(--dim-2)}
+  .rail .grp:first-child{margin-top:0}
+  .rail button{width:100%;display:flex;align-items:center;gap:8px;padding:6px 10px;position:relative;
+    color:var(--dim);text-align:left;font-size:13px;min-height:32px}
+  .rail button:hover{color:var(--ink)}
+  .rail button[aria-current="true"]{color:var(--ink)}
+  .rail button[aria-current="true"]::after{content:"";position:absolute;left:0;bottom:0;width:22px;height:1px;
+    background:var(--accent)}
+  .rail button:disabled{color:var(--dim-2);cursor:default}
+  .rail .tag{margin-left:auto;font-size:11px;color:var(--dim-2)}
+  .rail .foot{margin-top:auto;border-top:1px solid var(--rule);padding-top:8px}
+
+  .center{min-width:0;display:flex;flex-direction:column;min-height:0;background:var(--ground)}
+
+  .expiries{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px 0 16px;
+    border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+  .expiries::-webkit-scrollbar{display:none}
+  .expiries h1{font-size:16px;line-height:1;white-space:nowrap;font-weight:600;margin-right:4px}
+  .asset{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;background:var(--panel);
+    border:1px solid var(--line-2);color:var(--ink);font-size:13px;margin-right:6px;flex:0 0 auto}
+  .chip{position:relative;flex:0 0 auto;padding:8px 12px 9px;color:var(--dim);font-size:13px;
+    white-space:nowrap}
+  .chip:hover{color:var(--ink)}
+  .chip[aria-selected="true"]{color:var(--ink);font-weight:600}
+  .chip[aria-selected="true"]::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:1px;
+    background:var(--accent)}
+  .chip .dte{font-size:11px;color:var(--dim-2);margin-left:4px;vertical-align:0}
+  .expiries .tools{margin-left:auto;display:flex;gap:6px;flex:0 0 auto;padding-right:4px}
+
+  .chain{flex:1;min-height:0;overflow:auto}
+  table.chain{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.chain thead th{position:sticky;top:0;z-index:3;background:var(--panel);color:var(--dim);font-weight:500;
+    font-size:11px;padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.chain thead tr.sides th{font-size:12px;color:var(--ink);text-align:center;font-weight:600;padding:7px 0 4px}
+  table.chain thead tr.sides th.mid{color:var(--dim);font-weight:500;font-size:11px}
+  table.chain td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--rule);white-space:nowrap;
+    font-family:var(--mono);font-variant-numeric:tabular-nums;background:var(--panel);min-height:28px}
+  table.chain tr:hover td{background:var(--row-hi)}
+  td.strike{text-align:center;color:var(--ink);background:var(--panel-2);font-weight:500;font-size:13px;
+    border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  td.price{cursor:pointer}
+  td.price:hover{background:var(--raised)}
+  td.bid{color:var(--bid)} td.ask{color:var(--ask)} td.mark{color:var(--ink)}
+  td.iv,td.size,td.delta{color:var(--dim)}
+  td.sel-bid,td.sel-ask{background:var(--raised);color:var(--ink);outline:1px solid var(--accent);
+    outline-offset:-1px;font-weight:500}
+  td.empty-cell{color:var(--dim-2)}
+  td.price.zero{color:var(--dim-2)}
+  /* Nothing resting behind this price: it is the model, not the book. */
+  td.price.model{opacity:.45}
+  @media (max-width:1240px){ .app{grid-template-columns:minmax(0,1fr) 348px} .rail{display:none} }
+  tr.spot td{background:var(--ground);padding:0;border:0}
+  .spotline{display:flex;align-items:center;gap:10px;padding:4px 16px;color:var(--dim);font-size:12px}
+  .spotline .bar{flex:1;height:1px;background:var(--line-2)}
+  .spotline .tag{background:var(--ground);border:1px solid var(--accent);border-radius:2px;padding:2px 9px;
+    color:var(--ink);font-weight:500;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;
+    font-family:var(--mono)}
+
+  .bottom{flex:0 0 216px;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .bottom .tabs{display:flex;gap:4px;padding:4px 12px 0;border-bottom:1px solid var(--line)}
+  .bottom .tabs button{position:relative;padding:7px 12px;color:var(--dim);font-size:13px}
+  .bottom .tabs button:hover{color:var(--ink)}
+  .bottom .tabs button[aria-selected="true"]{color:var(--ink)}
+  .bottom .tabs button[aria-selected="true"]::after{content:"";position:absolute;left:12px;right:12px;bottom:0;
+    height:1px;background:var(--accent)}
+  .bottom .tools{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--dim-2);font-size:12px}
+  .bottom .body{flex:1;min-height:0;overflow:auto}
+  table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.grid th{position:sticky;top:0;background:var(--panel);color:var(--dim);font-weight:500;text-align:right;
+    padding:6px 10px;border-bottom:1px solid var(--line);font-size:11px}
+  table.grid th:first-child,table.grid td:first-child{text-align:left}
+  table.grid td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--rule);font-family:var(--mono);
+    font-variant-numeric:tabular-nums;background:var(--panel)}
+  .empty{padding:28px 16px;text-align:center;color:var(--dim);font-size:13px}
+
+  .ticket{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;
+    min-height:0;overflow:auto}
+  .ticket .head{display:flex;align-items:baseline;gap:8px;padding:14px 16px 12px;border-bottom:1px solid var(--line);
+    font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .ticket .head .meta{color:var(--dim);font-weight:400;font-size:12px}
+  .seg{display:flex;gap:14px;margin:12px 16px 8px;border-bottom:1px solid var(--rule)}
+  .seg button{position:relative;padding:6px 0 8px;color:var(--dim);font-size:13px}
+  .seg button:hover{color:var(--ink)}
+  .seg button[aria-selected="true"]{color:var(--ink)}
+  .seg button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+    background:var(--accent)}
+  .dir{display:flex;gap:8px;margin:0 16px 12px}
+  .dir button{flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--line-2);background:transparent;
+    color:var(--dim);font-size:13px}
+  .dir button:hover{border-color:var(--control,#3a3a3e);color:var(--ink)}
+  .dir button.buy[aria-selected="true"]{background:var(--pill-positive-bg,#1b2828);border-color:var(--ask);color:#5fc39c}
+  .dir button.sell[aria-selected="true"]{background:var(--pill-negative-bg,#2c1a20);border-color:var(--bid);color:#f08ca0}
+  .field{padding:0 16px;margin-bottom:10px}
+  .field label{display:block;color:var(--dim);font-size:12px;margin-bottom:4px}
+  .field input,.field select{width:100%;background:var(--ground);border:1px solid var(--line-2);border-radius:6px;
+    padding:8px 10px;color:var(--ink);font:inherit;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px}
+  .field input:focus,.field select:focus,button:focus-visible{outline:1px solid var(--accent);outline-offset:1px}
+  .field .row{display:flex;gap:8px}
+  .field .hint{color:var(--dim);font-size:12px;margin-top:4px}
+  .field .hint b{color:var(--ink);font-weight:500}
+  .adv{display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin:2px 0 12px;
+    color:var(--dim);font-size:13px}
+  .toggle{width:30px;height:17px;border-radius:999px;background:var(--raised);position:relative;
+    transition:background .15s;cursor:pointer;flex:0 0 auto}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;
+    background:var(--dim);transition:transform .15s}
+  .toggle[aria-pressed="true"]{background:var(--accent)}
+  .toggle[aria-pressed="true"]::after{transform:translateX(13px);background:var(--ink)}
+  .cta{margin:2px 16px 12px;padding:11px;border-radius:999px;background:var(--ink);color:var(--ground);
+    font-weight:600;font-size:13px;text-align:center}
+  .cta.sell{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+  .cta:disabled{color:var(--dim-2);background:var(--raised);cursor:not-allowed}
+  .sum{padding:10px 16px 0;border-top:1px solid var(--line);margin-top:2px}
+  .srow{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:var(--dim);font-size:13px}
+  .srow b{color:var(--ink);font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+  .rtabs{display:flex;gap:14px;margin:12px 16px 0;border-bottom:1px solid var(--rule)}
+  .rtabs button{position:relative;padding:6px 0 8px;color:var(--dim);font-size:13px}
+  .rtabs button[aria-selected="true"]{color:var(--ink)}
+  .rtabs button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+    background:var(--accent)}
+  .rbody{padding:12px 16px 16px}
+  .rbody .kpi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+  .rbody .kpi div{font-size:12px;color:var(--dim)}
+  .rbody .kpi b{display:block;font-family:var(--mono);font-size:14px;font-weight:500;margin-top:2px}
+  canvas.payoff{width:100%;height:158px;display:block}
+  table.mini{width:100%;border-collapse:collapse;font-size:13px}
+  table.mini td{padding:4px 0;border-bottom:1px solid var(--rule)}
+  table.mini td:last-child{text-align:right;font-family:var(--mono)}
+  .log div{padding:2px 0;border-bottom:1px solid var(--rule);font-size:12px;color:var(--dim)}
+
+  .status{flex:0 0 auto;min-height:28px;display:flex;align-items:center;gap:16px;padding:0 20px;
+    border-top:1px solid var(--line);background:var(--panel);color:var(--dim);font-size:12px;flex-wrap:wrap}
+  .status .good{color:var(--ask)} .status .bad{color:var(--bid)}
+
+  /* ---- page shell (stats, fees) ---- */
+  .page{flex:1;min-height:0;overflow:auto;background:var(--ground);display:none}
+  .page.on{display:block}
+  /* the trade screen must keep its three-column grid */
+  .app.page.on{display:grid;grid-template-columns:158px minmax(0,1fr) 372px;overflow:hidden}
+  .page-head{padding:32px 32px 8px;max-width:1200px}
+  .page-head h1{font-size:24px;line-height:1.15;letter-spacing:-.02em;margin:0 0 8px;font-weight:600}
+  .page-head p{margin:0;color:var(--dim);font-size:14px;max-width:66ch;line-height:1.5}
+  .page-body{padding:16px 32px 48px;max-width:1200px;display:grid;gap:24px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px}
+  .panel > h2{font-size:14px;font-weight:600;margin:0 0 16px;color:var(--ink)}
+  .panel > h2 span{color:var(--dim);font-weight:400;margin-left:8px;font-size:12px}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:24px 28px}
+  .kpi{display:flex;flex-direction:column;gap:4px}
+  .kpi .label{color:var(--dim);font-size:12px}
+  .kpi .value{font-family:var(--mono);font-size:22px;line-height:1.15;font-weight:500;
+    font-variant-numeric:tabular-nums}
+  .kpi .sub{color:var(--dim-2);font-size:12px}
+  .kpi .value.pos{color:var(--ask)} .kpi .value.neg{color:var(--bid)}
+  .split{display:grid;grid-template-columns:1.25fr .75fr;gap:24px;align-items:start}
+  @media (max-width:1000px){ .split{grid-template-columns:1fr} }
+  table.data{width:100%;border-collapse:collapse;font-size:13px}
+  table.data th{color:var(--dim);font-weight:500;text-align:right;padding:0 0 10px;font-size:12px;
+    border-bottom:1px solid var(--line)}
+  table.data th:first-child,table.data td:first-child{text-align:left}
+  table.data td{padding:10px 0;text-align:right;border-bottom:1px solid var(--rule);
+    font-family:var(--mono);font-variant-numeric:tabular-nums}
+  table.data tr:last-child td{border-bottom:0}
+  table.data td.name{font-family:var(--sans);color:var(--ink)}
+  table.data td.note{font-family:var(--sans);color:var(--dim);font-size:12px;text-align:left}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;
+    background:var(--pill-positive-bg,#1b2828);color:#5fc39c;font-family:var(--sans)}
+  .tag.zero{background:var(--raised);color:var(--dim)}
+  .chart{width:100%;height:200px;display:block}
+  .legend{display:flex;gap:16px;color:var(--dim);font-size:12px;margin-top:10px}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+  .prose{color:var(--ink);font-size:14px;line-height:1.65;max-width:78ch}
+  .prose code{font-family:var(--mono);color:var(--dim);font-size:13px}
+  .prose h3{font-size:14px;margin:20px 0 8px;font-weight:600}
+
+  /* The screen's own element: the selected spread's depth, bids and asks
+     mirrored toward the centre, so the book's shape is read, not counted. */
+  .depth{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;align-items:start}
+  .depth .side{display:grid;gap:3px}
+  .depth .r{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .depth .r.bid{justify-content:flex-end}
+  .depth .bar{height:5px;flex:0 0 auto}
+  .depth .r.bid .bar{background:var(--bid)}
+  .depth .r.ask .bar{background:var(--ask)}
+  .depth .px{color:var(--ink)}
+  .depth .cap{display:flex;justify-content:space-between;color:var(--dim-2);font-size:12px;
+    padding-bottom:4px;border-bottom:1px solid var(--rule);margin-bottom:4px}
+  .ghost{padding:5px 12px;border:1px solid var(--line-2);border-radius:6px;color:var(--ink);
+    font-size:12px;background:transparent;white-space:nowrap}
+  .ghost:hover{border-color:var(--accent)}
+  .ghost:disabled{color:var(--dim-2);border-color:var(--rule);cursor:not-allowed}
+  .state{color:var(--dim-2);font-size:12px;white-space:nowrap}
+
+  /* ---- narrow screens: the header wraps, then the ticket drops below ---- */
+  @media (max-width:1180px){
+    .banner{font-size:12px}
+    .index .chg{display:none}
+  }
+  @media (max-width:980px){
+    .topbar{flex-wrap:wrap;height:auto;min-height:48px;padding:8px 20px;row-gap:6px}
+    .index{display:none}
+    #idx-ETH{display:flex}
+    .nav .off{display:none}
+    .app.page.on{grid-template-columns:minmax(0,1fr) 320px}
+    .bottom .tabs{padding:4px 20px 0}
+    .expiries{padding:8px 20px 0}
+  }
+  @media (max-width:768px){
+    body{overflow:auto}
+    .app.page.on{grid-template-columns:minmax(0,1fr);overflow:visible}
+    .ticket{border-left:0;border-top:1px solid var(--line)}
+    .center{min-height:420px}
+    .bottom{flex:0 0 auto;max-height:280px}
+    .page-head,.page-body{padding-left:16px;padding-right:16px}
+    /* Nothing may be clipped at the screen edge: the expiry row wraps instead
+       of scrolling, and the status line drops its right-hand counter. */
+    .expiries{flex-wrap:wrap;overflow:visible;row-gap:4px}
+    #chips{flex-wrap:wrap}
+    .bottom .tools{display:none}
+    .tape{padding:5px 20px}
+    .status{padding:0 20px}
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="mark"><i></i><i></i></span>bounded options</div>
+  <nav class="nav">
+    <button data-page="trade" aria-selected="true">Options</button>
+    <button data-page="positions">Positions</button>
+    <button data-page="stats">Stats</button>
+    <button data-page="vault">Vault</button>
+    <button data-page="fees">Fees</button>
+    <button class="off" title="not in this prototype">Perps</button>
+    <button class="off" title="not in this prototype">Spot</button>
+  </nav>
+  <div class="grow"></div>
+  <div class="index" id="idx-ETH">
+    <span class="sym">ETH</span>
+    <span class="px num" data-px>—</span>
+    <span class="chg num" data-chg></span>
+  </div>
+  <div class="index" id="idx-BTC">
+    <span class="sym">BTC</span>
+    <span class="px num" data-px>—</span>
+    <span class="chg num" data-chg></span>
+  </div>
+  <button class="connect" id="wallet">No wallet · simulated</button>
+  <button class="iconbtn" id="bell">Feed</button>
+</header>
+
+<div class="banner" id="banner">connecting to Binance, Coinbase and Bybit…</div>
+<div class="tape" id="tape"></div>
+
+<main class="app page on" id="page-trade">
+  <nav class="rail">
+    <div class="grp">Trade</div>
+    <button aria-current="true">Options</button>
+    <button id="rail-book">Order Book</button>
+    <button id="rail-positions">Positions</button>
+    <button id="rail-history">History</button>
+    <div class="grp">Data</div>
+    <button id="rail-feed">Live Feed</button>
+    <button id="rail-greeks">Greeks</button>
+    <div class="grp">Not in this build</div>
+    <button disabled>Vaults</button>
+    <button disabled>Perps</button>
+    <button disabled>Stake</button>
+    <div class="foot">
+      <button id="rail-docs">Docs</button>
+      <button id="rail-support">Support</button>
+    </div>
+  </nav>
+
+  <section class="center">
+    <div class="expiries" id="expiries">
+      <h1 id="market-title">ETH option spreads</h1>
+      <button class="asset" id="asset"><span id="asset-label">ETH</span><span class="dim">▾</span></button>
+      <div id="chips" style="display:flex;gap:4px"></div>
+    </div>
+    <div class="chain">
+      <table class="chain">
+        <thead id="chain-head"></thead>
+        <tbody id="chain"></tbody>
+      </table>
+    </div>
+    <div class="bottom">
+      <div class="tabs" id="bottom-tabs">
+        <button data-panel="balances" aria-selected="true">Balances</button>
+        <button data-panel="positions">Positions</button>
+        <button data-panel="orders">Orders</button>
+        <button data-panel="greeks">Greeks</button>
+        <div class="tools"><span id="book-state">waiting for the market service</span></div>
+      </div>
+      <div class="body" id="bottom-body"></div>
+    </div>
+  </section>
+
+  <aside class="ticket">
+    <div class="head">
+      <span id="title">Select a strike</span>
+      <span class="meta" id="subtitle"></span>
+      <div class="grow"></div>
+    </div>
+    <div class="seg" id="routes">
+      <button data-route="auto" aria-selected="true">Auto Route</button>
+      <button data-route="book">Book</button>
+      <button data-route="rfq">RFQ</button>
+    </div>
+    <div class="dir" id="dirs">
+      <button class="buy" data-dir="buy" aria-selected="true">Buy to Open</button>
+      <button class="sell" data-dir="sell">Sell to Open</button>
+    </div>
+    <div class="field">
+      <label>Order Type</label>
+      <select id="order-type"><option value="limit">Limit</option><option value="market">Market</option></select>
+    </div>
+    <div class="field">
+      <label>Limit Price</label>
+      <input id="price" inputmode="decimal" value="0.00">
+      <div class="hint" id="price-hint">—</div>
+    </div>
+    <div class="field">
+      <label>Amount (contracts)</label>
+      <input id="amount" inputmode="numeric" value="1">
+    </div>
+    <div class="field">
+      <label>Time In Force</label>
+      <div class="row">
+        <select id="tif"><option value="gtc">GTC</option><option value="expiry">Until expiry</option></select>
+        <select id="tif2" style="width:88px"><option>24H</option><option>Expiry</option></select>
+      </div>
+    </div>
+    <div class="adv"><span>Advanced · Post Only</span><span class="toggle" id="post-only" role="button" aria-pressed="false"></span></div>
+    <button class="cta" id="cta" disabled>Select a strike</button>
+    <div class="sum">
+      <div class="srow"><span>Margin Required</span><b id="k-margin">$0.00</b></div>
+      <div class="srow"><span>Buying Power</span><b id="k-bp">$0.00</b></div>
+      <div class="srow"><span>Venue margin, inside the entry</span><b id="k-fee">$0.00</b></div>
+      <div class="srow"><span>Max Cost</span><b id="k-cost">$0.00</b></div>
+    </div>
+    <div class="rtabs" id="rtabs">
+      <button data-rtab="payoff" aria-selected="true">Payoff</button>
+      <button data-rtab="greeks">Greeks</button>
+      <button data-rtab="trades">Trades</button>
+      <button data-rtab="book">Book</button>
+    </div>
+    <div class="rbody" id="rbody"></div>
+  </aside>
+</main>
+
+
+  <main class="page" id="page-positions">
+    <div class="page-head">
+      <h1>Positions</h1>
+      <p id="pf-sub">Every ticket this account holds, marked against the live index and the best whole-size quote.</p>
+    </div>
+    <div class="page-body">
+      <section class="panel">
+        <div class="kpi-row">
+          <div class="kpi"><span class="label">Unrealised</span><span class="value" id="pf-open">&mdash;</span><span class="sub" id="pf-open-sub">open tickets, marked now</span></div>
+          <div class="kpi"><span class="label">Realised</span><span class="value" id="pf-realised">&mdash;</span><span class="sub">from closed and settled tickets</span></div>
+          <div class="kpi"><span class="label">Cash</span><span class="value" id="pf-cash">&mdash;</span><span class="sub">available to trade</span></div>
+          <div class="kpi"><span class="label">Collateral at risk</span><span class="value" id="pf-risk">&mdash;</span><span class="sub">locked behind short tickets</span></div>
+          <div class="kpi"><span class="label">Open tickets</span><span class="value" id="pf-count">&mdash;</span><span class="sub" id="pf-closable">&mdash;</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Open tickets <span>close sells the whole ticket into the best whole-size bid, at or above the floor shown</span></h2>
+        <table class="data" id="pf-table">
+          <thead><tr><th>Instrument</th><th>Side</th><th>Contracts</th><th>Cost</th><th>Mark</th><th>Exit bid</th><th>Unrealised</th><th>Expiry</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Closed and settled <span>what each ticket actually returned</span></h2>
+        <table class="data" id="pf-history">
+          <thead><tr><th>Time</th><th>Instrument</th><th>Side</th><th>Contracts</th><th>Paid</th><th>Received</th><th>P&amp;L</th><th>How</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+  <main class="page" id="page-stats">
+    <div class="page-head">
+      <h1>Market activity</h1>
+      <p>What this tape is doing right now, next to Derive's published numbers so the scale is honest: 50 fills a
+        second is a load test, not demand.</p>
+    </div>
+    <div class="page-body">
+      <section class="panel">
+        <div class="kpi-row">
+          <div class="kpi"><span class="label">Fills / second</span><span class="value pos" id="st-tps">—</span><span class="sub">tape, last 5 seconds</span></div>
+          <div class="kpi"><span class="label">Contracts / second</span><span class="value" id="st-cps">—</span><span class="sub">whole offers and bids</span></div>
+          <div class="kpi"><span class="label">Premium / second</span><span class="value" id="st-pps">—</span><span class="sub">cash changing hands</span></div>
+          <div class="kpi"><span class="label">Notional / second</span><span class="value" id="st-nps">—</span><span class="sub">contracts × index</span></div>
+          <div class="kpi"><span class="label">Prints since start</span><span class="value" id="st-prints">—</span><span class="sub">lifetime fills</span></div>
+          <div class="kpi"><span class="label">Series quoted</span><span class="value" id="st-series">—</span><span class="sub">both kinds, nearest expiry</span></div>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <h2>Notional volume <span>last 60 seconds, per second</span></h2>
+          <canvas class="chart" id="volume-chart"></canvas>
+          <div class="legend">
+            <span><i style="background:#1fd18f"></i>this tape</span>
+            <span><i style="background:#5aa2ff"></i>Derive 24h rate, per second (reference)</span>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Against Derive</h2>
+          <table class="data" id="compare-table">
+            <thead><tr><th>metric</th><th>this tape</th><th>Derive</th><th>ratio</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="note" style="color:var(--dim);font-size:11px;margin:12px 0 0">
+            Derive figures read from its Stats page on 2026-10-28: $68.79M 24h volume, $43.09B lifetime, 5.23M
+            lifetime trades, $10.93M fees. Lifetime spans 367 days, so its average rate is about 0.165 trades/s.
+            This tape is deliberately pinned near 50 fills/s — a load test, which is why the notional ratio runs in
+            the thousands. Run <code>node sim/market-daemon.mjs --tps 1</code> for a Derive-paced tape.
+          </p>
+        </section>
+      </div>
+
+      <section class="panel">
+        <h2>Volume by bucket <span>the same 60 seconds, tabulated</span></h2>
+        <table class="data" id="bucket-table">
+          <thead><tr><th>second</th><th>fills</th><th>contracts</th><th>premium</th><th>notional</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+  <main class="page" id="page-vault">
+    <div class="page-head">
+      <h1>The vault</h1>
+      <p>Every ticket on this screen is written by the pool, so putting money here is the only way to take the other
+        side. What you can withdraw is what no open ticket still needs: the worst case of every contract the vault has
+        written stays behind until it settles.</p>
+    </div>
+    <div class="page-body">
+      <div class="split">
+        <section class="panel">
+          <h2>Your money at the venue <span class="dim" id="v-account"></span></h2>
+          <table class="data">
+            <tbody>
+              <tr><td class="name">In your wallet (token)</td><td id="v-wallet">—</td></tr>
+              <tr><td class="name">At the venue, ready to trade</td><td id="v-cash">—</td></tr>
+              <tr><td class="name">Vault shares held</td><td id="v-shares">—</td></tr>
+              <tr><td class="name">What those shares redeem</td><td id="v-exit">—</td></tr>
+            </tbody>
+          </table>
+          <div class="field">
+            <label>Amount (USDT)</label>
+            <input id="v-amount" inputmode="decimal" value="1000">
+          </div>
+          <div class="row">
+            <button class="cta" id="v-deposit" style="flex:1">Deposit to venue</button>
+            <button class="cta" id="v-withdraw" style="flex:1;background:transparent;color:var(--ink);border:1px solid var(--line-2)">Withdraw</button>
+          </div>
+          <div class="note" id="v-cash-note"></div>
+        </section>
+        <section class="panel">
+          <h2>Provide liquidity <span class="dim" id="v-util"></span></h2>
+          <table class="data">
+            <tbody>
+              <tr><td class="name">Vault equity</td><td id="v-equity">—</td></tr>
+              <tr><td class="name">Free for new tickets</td><td id="v-free">—</td></tr>
+              <tr><td class="name">Committed to open worst cases</td><td id="v-reserved">—</td></tr>
+              <tr><td class="name">Margin earned, sweepable</td><td id="v-venue">—</td></tr>
+              <tr><td class="name">Margin locked until tickets run off</td><td id="v-locked">—</td></tr>
+              <tr><td class="name">Consolation pot</td><td id="v-consolation">—</td></tr>
+              <tr><td class="name">Open tickets against the pool</td><td id="v-tickets">—</td></tr>
+            </tbody>
+          </table>
+          <div class="row">
+            <button class="cta" id="v-enter" style="flex:1">Enter the vault</button>
+            <button class="cta" id="v-redeem" style="flex:1;background:transparent;color:var(--ink);border:1px solid var(--line-2)">Redeem shares</button>
+          </div>
+          <div class="field">
+            <label>Shares to redeem</label>
+            <input id="v-shares-in" inputmode="decimal" value="0">
+          </div>
+          <div class="note" id="v-lp-note"></div>
+        </section>
+      </div>
+      <section class="panel">
+        <h2>Where the vault's money is <span class="dim" id="v-custody-note"></span></h2>
+        <table class="data" id="v-custody">
+          <thead><tr><th>bucket</th><th>tokens</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="note">The sum of these buckets is what the contract promises to hold; it is compared with the token
+          balance on every read, and the footer says which of the two it agreed with.</p>
+      </section>
+    </div>
+  </main>
+
+  <main class="page" id="page-fees">
+    <div class="page-head">
+      <h1>Fees and how a premium is built</h1>
+      <p>This prototype charges nothing. Rather than invent a tier table, here is the real schedule on Derive and
+        the exact arithmetic this screen uses for premium, collateral and payoff.</p>
+    </div>
+    <div class="page-body">
+      <section class="panel">
+        <h2>Fee schedule <span>this prototype</span></h2>
+        <table class="data">
+          <thead><tr><th>line</th><th>maker</th><th>taker</th><th>note</th></tr></thead>
+          <tbody>
+            <tr><td class="name">Options</td><td>0.00%</td><td>0.00%</td><td class="note">no fee module exists in the contract</td></tr>
+            <tr><td class="name">Settlement</td><td>0.00%</td><td>0.00%</td><td class="note">permissionless, caller pays gas only</td></tr>
+            <tr><td class="name">Withdrawal</td><td>—</td><td>0.00%</td><td class="note">NEP-141 transfer, 1 yoctoNEAR attached</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <h2>Derive's published option tiers <span>for scale</span></h2>
+          <table class="data">
+            <thead><tr><th>28d volume</th><th>maker</th><th>taker</th></tr></thead>
+            <tbody>
+              <tr><td class="name">≥ $500M or ≥ 7.5% share</td><td>-0.005%</td><td>0.0075%</td></tr>
+              <tr><td class="name">≥ $250M</td><td>-0.0013%</td><td>0.0125%</td></tr>
+              <tr><td class="name">≥ $50M</td><td>0.00%</td><td>0.015%</td></tr>
+              <tr><td class="name">&lt; $50M</td><td>0.01%</td><td>0.03%</td></tr>
+            </tbody>
+          </table>
+          <p style="color:var(--dim);font-size:11px;margin:12px 0 0">Read from Derive's Fees page on 2026-10-28.
+            Negative maker fees are rebates for verified market makers. Our prototype has no such module.</p>
+        </section>
+        <section class="panel">
+          <h2>The arithmetic on this screen</h2>
+          <div class="prose">
+            <h3>Premium</h3>
+            <code>mark = put(high) − put(low)</code> (calls mirrored), Black-Scholes with a put-skew smile
+            <code>σ(K) = σ_atm · (1 + 0.35 · ln(S/K))</code>, r = 0. The quote is <code>mark ± max(4% · mark, 0.02)</code>;
+            you pay the resting price, never the mark.
+            <h3>Collateral</h3>
+            <code>ceil(contracts · (high − low))</code> — a $100-wide ETH spread reserves $100 per contract,
+            posted by the seller.
+            <h3>Payoff at expiry</h3>
+            <code>floor(contracts · clamp(high − S, 0, width))</code> for puts, <code>clamp(S − low, 0, width)</code> for
+            calls. Void returns premium and collateral.
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+<footer class="status">
+  <span id="s-feed">feed —</span>
+  <span id="s-custody">custody —</span>
+  <span id="s-page">options</span>
+  <span id="s-series">—</span>
+  <span id="s-toast"></span>
+  <div class="grow"></div>
+  <span id="s-build">prototype</span>
+</footer>
+
+<script type="module">
+/*BUNDLE*/
+const SNAPSHOT = /*SNAPSHOT*/null/*END*/;
+
+/* The market lives in sim/market-daemon.mjs. This screen is a client: it polls
+   /state, posts /action, and falls back to model quotes when the daemon is down.
+   The daemon serves this file too, and rewrites the origin below to its own
+   port, so http://127.0.0.1:8787 is the whole product with one command. */
+const MARKET_URL = "http://127.0.0.1:8787";
+const SCALE = 1_000_000n;
+
+const app = {
+  asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy", route: "auto",
+  postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false,
+  userSized: false,
+  feedState: null, expiries: [], renderedTicks: -1, lastError: null,
+  /* The daemon pushes index prints, book heads and fills on /stream; /state
+     stays the slow, heavy snapshot. `seen` holds the last rendered value of
+     every figure so a change can be marked rather than silently repainted. */
+  live: null, stream: null, seen: new Map(), chainSig: "",
+};
+
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 2) => Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+/// Derive prints strikes and index levels with one decimal and drops a
+/// trailing .0. That rule is for levels, not for money — see `quote`.
+const px = (v) => (v === null || v === undefined || Number.isNaN(v) ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 }));
+/// Money follows the magnitude of the figure: cash keeps two decimals, a
+/// premium gets the precision it needs so that a $0.01 option never prints as
+/// "$0", and a mark too small to show says so instead of lying about zero.
+const quote = (v) => {
+  const magnitude = Math.abs(v);
+  if (magnitude === 0) return (0).toFixed(2);
+  let digits = magnitude >= 1 ? 2 : magnitude >= 0.1 ? 3 : 4;
+  while (digits < 6 && Number(v.toFixed(digits)) === 0) digits += 1;
+  if (Number(v.toFixed(digits)) === 0) return `<${(1 / 10 ** digits).toFixed(digits)}`;
+  return Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+};
+const usd = (v, d) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  if (d !== undefined) return `$${fmt(v, d)}`;
+  const text = quote(v);
+  // A figure too small to print keeps its less-than sign outside the currency.
+  return text.startsWith("<") ? `<$${text.slice(1)}` : `$${text}`;
+};
+const pct = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v) ? "—" : `${(v * 100).toFixed(d)}%`);
+
+/* ---------------- the index: the engine's, never a socket of our own ---------------- */
+/// The venue holds the three exchange connections, takes their median and
+/// publishes it. A browser running its own copy of that rule would be a second
+/// index, and a second way for the screen to disagree with the chain.
+let lastPaint = 0;
+
+/// The gateway's push channel: the index, the tape and the flow counters, for
+/// whichever asset is on screen. Prices come from `/state`, which is the same
+/// read the chain gets — a frame that carried its own quote would be a third.
+function startStream() {
+  app.stream?.close();
+  const source = new EventSource(`${MARKET_URL}/stream?asset=${app.asset}`);
+  source.onmessage = (event) => {
+    let frame;
+    try {
+      frame = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastPaint < 90) return;
+    lastPaint = now;
+    app.live = frame;
+    app.online = true;
+    if (frame.index) app.feedState = { ...app.feedState, ...frame.index, assets: frame.index.assets };
+    renderIndex();
+    renderBanner();
+    renderTape();
+    renderStatus();
+    if (app.page === "stats") renderStats();
+    if (app.page === "positions") renderPositions();
+  };
+  source.onerror = () => {
+    // The browser reconnects on its own; the slow poll decides whether the
+    // gateway is really gone.
+    app.live = null;
+  };
+  app.stream = source;
+}
+
+const feedSummary = (asset) => app.live?.index?.assets?.[asset] ?? app.feedState?.assets?.[asset] ?? null;
+const feedSpot = (asset) => feedSummary(asset)?.median ?? null;
+const youAccount = () => app.state?.you?.account ?? "you";
+
+function spotFor(asset = app.asset) {
+  const live = feedSpot(asset);
+  if (typeof live === "number" && live > 0) return live;
+  if (app.state && asset === app.asset && typeof app.state.spot === "number") return app.state.spot;
+  return null;
+}
+
+/// Fresh enough to show and to trade against: the same window the engine
+/// applies before it will report a print to the oracle at all.
+const isLive = (asset = app.asset) => {
+  const summary = feedSummary(asset);
+  return (summary?.freshSources ?? 0) > 0 && (summary?.ageMs ?? Number.POSITIVE_INFINITY) < 15_000;
+};
+
+/* ---------------- the gateway client ---------------- */
+/// The stamp the chain stores for the chosen expiry. A day is not enough: an
+/// hourly venue lists two grids inside one day, and a page that asks for "the
+/// 29th" gets whichever of them the read happened to reach last.
+const expiryStamp = () => (app.state?.expiries ?? app.expiries)[app.expiryIndex]?.ns ?? null;
+
+/// Open on a grid somebody can still trade, not on the one that already fixed.
+function chooseLiveExpiry() {
+  const live = app.expiries.findIndex((chip) => new Date(chip.iso).getTime() > Date.now());
+  app.expiryIndex = live === -1 ? 0 : live;
+}
+
+async function poll() {
+  const params = new URLSearchParams({ asset: app.asset, kind: app.kind });
+  if (app.strike !== null) params.set("strike", String(app.strike));
+  const expiry = expiryStamp();
+  if (expiry) params.set("expiry", expiry);
+  try {
+    const response = await fetch(`${MARKET_URL}/state?${params}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`state ${response.status}`);
+    app.state = await response.json();
+    app.online = true;
+    app.lastError = null;
+    if (!app.expiries.length) {
+      app.expiries = app.state.expiries ?? [];
+      chooseLiveExpiry();
+    }
+  } catch (error) {
+    app.online = false;
+    app.lastError = String(error.message ?? error);
+    app.state = null;
+  }
+  renderAll();
+}
+
+async function act(type) {
+  if (!app.online || app.strike === null) return;
+  const body = {
+    type, asset: app.asset, kind: app.kind, strike: app.strike, expiry: expiryStamp(),
+    quantity: amount(), limit: Number($("price").value) || lastReference(), postOnly: app.postOnly,
+  };
+  try {
+    const response = await fetch(`${MARKET_URL}/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error);
+    app.toast = { text: result.message, at: Date.now() };
+  } catch (error) {
+    app.toast = { text: `rejected · ${error.message}`, at: Date.now(), bad: true };
+  }
+  await poll();
+}
+
+/* ---------------- the ladder, as the chain lists it ---------------- */
+/// The strikes are the gateway's rows, the prices are the engine's, and the page
+/// holds no model of its own: what the screen shows is what the venue would
+/// trade, read from the same snapshot the ticket is priced from.
+const ladder = () => (app.state?.chain ?? []).map((row) => row.strike);
+
+const cellOf = (kind, strike) => {
+  const row = (app.state?.chain ?? []).find((entry) => entry.strike === strike);
+  return row ? (kind === "Put" ? row.put : row.call) : null;
+};
+
+function rowFor(kind, strike) {
+  const cell = cellOf(kind, strike);
+  if (!cell) return null;
+  // A wing worth less than one unit has no price the venue will write, and a
+  // spread whose loaded entry passes its own width is not offered at all. Both
+  // read as a mark with no side to click, never as a zero a trader could take.
+  return cell.mark > 0 || cell.ask > 0 || cell.bid > 0 ? cell : null;
+}
+
+function selectedSeries() {
+  if (app.strike === null) return null;
+  return app.state?.series ?? null;
+}
+
+function amount() {
+  const value = Number($("amount").value);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+}
+
+/// The engine takes whole resting quotes only, so an order sized differently
+/// from the book cannot fill. Until the visitor types a size of their own, the
+/// ticket follows the size the chosen price is actually offered at.
+function sizeTicket() {
+  if (app.strike === null || app.userSized) return;
+  const row = rowFor(app.kind, app.strike);
+  const size = Math.floor(app.dir === "buy" ? row?.askSize ?? 0 : row?.bidSize ?? 0);
+  if (size >= 1 && $("amount").value !== String(size)) $("amount").value = String(size);
+}
+
+function lastReference() {
+  const row = rowFor(app.kind, app.strike);
+  return row ? (app.dir === "buy" ? row.ask : row.bid) : 0;
+}
+
+/* ---------------- rendering ---------------- */
+function renderExpiries() {
+  $("asset-label").textContent = app.asset;
+  $("market-title").textContent = `${app.asset} option spreads`;
+  const expiries = app.state?.expiries ?? app.expiries;
+  if (!expiries.length) return;
+  app.expiryIndex = Math.min(app.expiryIndex, expiries.length - 1);
+  $("chips").innerHTML = expiries
+    .map((expiry, index) => {
+      const dte = expiry.dte ?? Math.max(0, Math.ceil((new Date(expiry.iso).getTime() - Date.now()) / 86_400_000));
+      const badge = index === app.expiryIndex ? `<span class="dte">${dte}d</span>` : "";
+      return `<button class="chip" data-expiry="${index}" aria-selected="${index === app.expiryIndex}">${expiry.label}${badge}</button>`;
+    })
+    .join("");
+  $("chips").querySelectorAll("[data-expiry]").forEach((chip) =>
+    chip.addEventListener("click", () => {
+      app.expiryIndex = Number(chip.dataset.expiry);
+      app.strike = null;
+      app.seen.clear();
+      poll();
+    }));
+}
+
+function renderIndex() {
+  for (const asset of ["ETH", "BTC"]) {
+    const summary = app.live?.index?.assets?.[asset] ?? app.feedState?.assets?.[asset];
+    const node = $(`idx-${asset}`);
+    if (!node) continue;
+    const price = summary?.median ?? SNAPSHOT?.assets?.[asset]?.series?.spot ?? null;
+    const pxNode = node.querySelector("[data-px]");
+    pxNode.textContent = price === null ? "—" : price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    pxNode.className = `px num${flash(`idx-${asset}`, price)}`;
+    const chg = node.querySelector("[data-chg]");
+    const bps = summary?.spreadBps;
+    chg.textContent =
+      price === null ? "" : `${bps === null || bps === undefined ? "—" : `${bps.toFixed(1)}bps`} · ${summary?.freshSources ?? 0}/3 venues`;
+    chg.className = "chg num";
+  }
+}
+
+function renderTape() {
+  const host = $("tape");
+  if (!host) return;
+  const fills = app.live?.tape ?? [];
+  const limit = window.innerWidth < 900 ? 2 : 5;
+  const parts = fills
+    .filter((print) => print.size)
+    .slice(0, limit)
+    .map(
+      (print) =>
+        `<span><i>${print.at.slice(0, 8)}</i><b class="${print.side === "buy" ? "buy" : "sell"}">${print.side === "buy" ? "buy" : "sell"}</b> ${print.series ?? print.text}${print.price ? ` @ ${print.price.toFixed(2)}` : ""}</span>`,
+    );
+  host.innerHTML = parts.length ? parts.join("") : `<span><i>tape</i>no prints yet</span>`;
+}
+
+/// The one line that says where the numbers come from. It is the only place a
+/// visitor learns that the index is a median of three venues rather than a
+/// price this app invented, so it spells the venues out instead of abbreviating
+/// them into noise.
+function renderBanner() {
+  const state = app.live?.index ?? app.feedState;
+  const daemon = app.state;
+  if (!state) { $("banner").innerHTML = "connecting to Binance, Coinbase and Bybit…"; return; }
+  const venue = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+  const narrow = window.innerWidth < 900;
+  const parts = [`<span class="dot ${state.status}"></span>`, `<b>${state.status.toUpperCase()}</b>`];
+  for (const [asset, summary] of Object.entries(state.assets ?? {})) {
+    const median = summary?.median;
+    const level = median === undefined || median === null ? "—" : median.toFixed(2);
+    // Only the asset on screen gets its receipts; the other one is a level.
+    if (narrow || asset !== app.asset) {
+      parts.push(`${asset} index <b>${level}</b>${narrow ? ` from ${summary?.freshSources ?? 0} venues` : ""}`);
+      continue;
+    }
+    const venues = (summary?.sources ?? [])
+      .map((source) => `${venue(source.name)} <b>${source.price.toFixed(2)}</b>`)
+      .join(" · ");
+    const confidence = summary?.confidenceBps ? (summary.confidenceBps / 100).toFixed(1) : null;
+    parts.push(
+      `${asset} index <b>${level}</b> = median of ${venues}` +
+        `${summary?.spreadBps === null || summary?.spreadBps === undefined ? "" : ` | venues ${(summary.spreadBps / 100).toFixed(2)}% apart`}` +
+        `${confidence === null ? "" : ` | oracle confidence ${confidence}%`}`,
+    );
+  }
+  if (!narrow) parts.push(`<b>${state.ticks ?? 0}</b> index prints`);
+  parts.push(
+    daemon
+      ? `<b>${daemon.seriesCount}</b> spreads quoted · <b>${app.live?.flow?.prints ?? 0}</b> fills this session`
+      : `<span class="neg">market service offline</span> · run <code>scripts/market.sh</code>`,
+  );
+  $("banner").innerHTML = parts.map((part) => `<span>${part}</span>`).join(' <span class="sep">|</span> ');
+}
+
+function cell(value, cls) {
+  if (value === null || value === undefined) return `<td class="empty-cell ${cls}">—</td>`;
+  return `<td class="${cls}">${value}</td>`;
+}
+
+function columns(compact) {
+  const all = [
+    { key: "bidSize", label: "Bid Size" },
+    { key: "bidIv", label: "Bid IV" },
+    { key: "bid", label: "Bid Price" },
+    { key: "mark", label: "Mark" },
+    { key: "ask", label: "Ask Price" },
+    { key: "askIv", label: "Ask IV" },
+    { key: "askSize", label: "Ask Size" },
+    { key: "delta", label: "Delta" },
+    { key: "markIv", label: "Mark IV" },
+  ];
+  // A phone cannot hold nine columns per side and keep the strike readable, so
+  // it gets the three that decide a trade.
+  if (window.innerWidth < 760) return all.filter((column) => ["bid", "mark", "ask"].includes(column.key));
+  const hidden = new Set(["bidSize", "askSize", "delta", "markIv"]);
+  return compact ? all.filter((column) => !hidden.has(column.key)) : all;
+}
+
+const isCompact = () => window.innerWidth < 1500;
+
+function renderHeader(cols) {
+  const expiry = app.state?.expiries?.[app.expiryIndex] ?? app.expiries[app.expiryIndex];
+  const target = expiry ? new Date(expiry.iso) : new Date();
+  const ms = Math.max(0, target.getTime() - Date.now());
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const weekday = target.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+  const monthDay = target.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  // An hourly venue spends most of its life inside a day, where `0d 0h` says
+  // nothing a minute count would not say better.
+  const mid = days > 0
+    ? (isCompact() ? `${days}d ${hours}h` : `${weekday} ${monthDay} ${days}d ${hours}h ${minutes}m`)
+    : hours > 0
+      ? `${hours}h ${minutes}m`
+      : `${minutes}m`;
+  $("chain-head").innerHTML = `<tr class="sides">
+      <th colspan="${cols.length}">Calls</th>
+      <th class="mid">${mid}</th>
+      <th colspan="${cols.length}">Puts</th>
+    </tr>
+    <tr>${cols.map((column) => `<th>${column.label}</th>`).join("")}<th>Strike</th>${cols
+    .map((column) => `<th>${column.label}</th>`)
+    .join("")}</tr>`;
+}
+
+/// Mark a figure that changed since the last frame. The class is the record
+/// of a real move, so a still market shows a still screen.
+function flash(key, value) {
+  const previous = app.seen.get(key);
+  app.seen.set(key, value);
+  if (previous === undefined || previous === value || !Number.isFinite(previous) || !Number.isFinite(value)) return "";
+  return value > previous ? " tick-up" : " tick-down";
+}
+
+function renderChain(force = false) {
+  const body = $("chain");
+  const rows = ladder();
+  const spot = spotFor();
+  const cols = columns(isCompact());
+  const signature = `${app.asset}|${spot}|${cols.length}|${(app.state?.chain ?? []).map((row) => `${row.strike}:${row.put?.bid}:${row.put?.ask}:${row.call?.bid}:${row.call?.ask}`).join(",")}`;
+  if (!force && signature === app.chainSig) return;
+  app.chainSig = signature;
+  document.querySelector("table.chain").classList.toggle("compact", cols.length < 9);
+  renderHeader(cols);
+  if (!rows.length || spot === null) {
+    body.innerHTML = `<tr><td colspan="${cols.length * 2 + 1}" class="empty">waiting for a price</td></tr>`;
+    return;
+  }
+  const html = [];
+  const markerIndex = rows.findIndex((strike) => strike > spot);
+  rows.forEach((strike, index) => {
+    if (index === markerIndex) {
+      html.push(`<tr class="spot"><td colspan="${cols.length * 2 + 1}"><div class="spotline">
+        <span class="bar"></span>
+        <span class="tag">${app.asset} ${usd(spot, 2)}<span class="dim">${isLive() ? "index" : "snapshot"}</span></span>
+        <span class="bar"></span>
+      </div></td></tr>`);
+    }
+    const call = rowFor("Call", strike);
+    const put = rowFor("Put", strike);
+    // A strike the venue has neither side of is not on the board at all; one
+    // side is normal — the worthless wing of a spread nobody is asked to buy.
+    if (!call && !put) return;
+    const selCall = app.strike === strike && app.kind === "Call";
+    const selPut = app.strike === strike && app.kind === "Put";
+    const side = (row, selected, kind) => {
+      if (!row) return cols.map((column) => cell(null, column.key === "mark" ? "mark num" : "")).join("");
+      return cols
+        .map((column) => {
+          const mark = `${strike}${kind}${column.key}`;
+          switch (column.key) {
+            case "bidSize":
+              return cell(row.bidSize.toFixed(2), `size${flash(mark, row.bidSize)}`);
+            case "bidIv":
+              return cell(pct(row.bidIv), "iv");
+            case "bid":
+              return cell(row.bid > 0 ? usd(row.bid) : null, `price bid num${row.bid < 0.05 ? " zero" : ""}${selected && app.dir === "sell" ? " sel-bid" : ""}${flash(mark, row.bid)}`).replace("<td ", `<td data-kind="${kind}" `);
+            case "mark":
+              return cell(usd(row.mark), `mark num${flash(mark, row.mark)}`);
+            case "ask":
+              return cell(row.ask > 0 ? usd(row.ask) : null, `price ask num${row.ask < 0.05 ? " zero" : ""}${selected && app.dir === "buy" ? " sel-ask" : ""}${flash(mark, row.ask)}`).replace("<td ", `<td data-kind="${kind}" `);
+            case "askIv":
+              return cell(pct(row.askIv), "iv");
+            case "askSize":
+              return cell(row.askSize.toFixed(2), `size${flash(mark, row.askSize)}`);
+            case "delta":
+              return cell(row.delta.toFixed(4), `delta${flash(mark, row.delta)}`);
+            default:
+              return cell(pct(row.markIv), "iv");
+          }
+        })
+        .join("");
+    };
+    html.push(`<tr data-strike="${strike}">
+      ${side(call, selCall, "Call")}
+      <td class="strike">${fmt(strike, 0)}</td>
+      ${side(put, selPut, "Put")}
+    </tr>`);
+  });
+  body.innerHTML = html.join("");
+  body.querySelectorAll("tr[data-strike]").forEach((row) => {
+    const strike = Number(row.dataset.strike);
+    row.querySelectorAll("td.price").forEach((td) =>
+      td.addEventListener("click", (event) => {
+        event.stopPropagation();
+        app.kind = td.dataset.kind;
+        app.dir = td.classList.contains("ask") ? "buy" : "sell";
+        app.strike = strike;
+        poll();
+      }));
+  });
+}
+
+function renderTicket() {
+  const series = selectedSeries();
+  const row = app.strike === null ? null : rowFor(app.kind, app.strike);
+  if (app.strike === null || !row) {
+    $("title").textContent = "Select a strike";
+    $("subtitle").textContent = "click a call or put price";
+    $("cta").disabled = true;
+    $("cta").textContent = "Select a strike";
+    $("price-hint").textContent = app.online ? "pick a side and a strike" : "market service offline";
+    return;
+  }
+  sizeTicket();
+  // The legs come from the quoted cell, which the chain and the engine both
+  // agree on — the page has no width rule of its own to apply to a strike.
+  const { low, high } = row;
+  const expiry = app.state?.expiries?.[app.expiryIndex] ?? app.expiries[app.expiryIndex];
+  $("title").textContent = `${app.asset} ${fmt(low, 0)}/${fmt(high, 0)} ${app.kind} Spread`;
+  $("subtitle").textContent = `${expiry?.label ?? "—"} · ${$("chain-head").querySelector(".mid")?.textContent ?? ""}`;
+
+  const aggressive = app.postOnly ? (app.dir === "buy" ? row.bid : row.ask) : (app.dir === "buy" ? row.ask : row.bid);
+  const reference = aggressive;
+  // A wing priced in fractions of a cent cannot go in the box as "$0.00": the
+  // limit the visitor sees is the limit the ticket is sent with.
+  const digits = reference > 0 && reference < 0.1 ? 4 : 2;
+  if (document.activeElement !== $("price")) $("price").value = reference.toFixed(digits);
+  $("price-hint").innerHTML = app.postOnly
+    ? `${app.dir === "buy" ? "Resting bid" : "Resting offer"} at <b>${usd(reference)}</b> · best ${app.dir === "buy" ? `bid ${usd(row.bid)}` : `ask ${usd(row.ask)}`}`
+    : app.dir === "buy"
+      ? `Ask <b>${usd(row.ask)}</b> × ${row.askSize.toFixed(0)} · mark ${usd(row.mark)}`
+      : `Bid <b>${usd(row.bid)}</b> × ${row.bidSize.toFixed(0)} · mark ${usd(row.mark)}`;
+
+  const contracts = amount();
+  const limit = Number($("price").value) || reference;
+  const premium = contracts * limit;
+  $("k-margin").textContent = app.dir === "sell" ? usd(contracts * (high - low)) : usd(premium);
+  const you = app.state?.you;
+  $("k-bp").textContent = you ? usd(you.available) : "—";
+  $("k-cost").textContent = usd(premium);
+  // The venue's cut is inside the entry, so it is the gap between the mark and
+  // the price asked — not a line added afterwards. Both numbers are the
+  // engine's; this only subtracts them.
+  const load = app.dir === "buy" ? row.ask - row.mark : row.mark - row.bid;
+  $("k-fee").textContent = `${usd(load * contracts)} · ${((load / Math.max(app.dir === "buy" ? row.ask : row.mark, 1e-9)) * 10_000).toFixed(0)} bps`;
+
+  const settled = series && series.settlement !== "open";
+  // Player vs pool: the vault is the counterparty to every ticket, so what
+  // decides a click is not whether somebody happens to be quoting this cell but
+  // whether the venue has a price for it at all. Resting quotes stay on the
+  // post-only path, where matching is the whole point.
+  const quotes = (app.dir === "buy" ? series?.offers : series?.bids) ?? [];
+  const mine = (quote) => quote.who !== youAccount();
+  const priced = app.dir === "buy" ? row.ask > 0 : row.bid > 0;
+  const resting = app.dir === "buy" ? row.askSize > 0 : row.bidSize > 0;
+  // Player vs pool: the vault stands behind every cell, so a click at the price
+  // shown crosses — there is no book that has to be there for the order to fill.
+  // Post-only is the one mode that does want a match, and it says so.
+  const matchable = app.postOnly
+    ? false
+    : priced ||
+      (app.dir === "buy"
+        ? quotes.some((q) => mine(q) && q.quantity <= contracts && q.premium <= limit * contracts * 1.02)
+        : quotes.some((q) => mine(q) && q.quantity === contracts && q.premium >= limit * contracts * 0.98));
+  const cta = $("cta");
+  cta.disabled = !app.online || settled || !isLive() || (app.postOnly ? !resting : !priced);
+  cta.className = `cta ${app.dir === "sell" ? "sell" : ""}`;
+  if (!app.online) cta.textContent = "Market service offline";
+  else if (settled) cta.textContent = `Series ${series.settlement}`;
+  else if (!isLive()) cta.textContent = "Waiting for a live print";
+  else if (app.postOnly && !resting) cta.textContent = `No resting ${app.dir === "buy" ? "offers" : "bids"} here`;
+  else if (!priced) cta.textContent = `Nothing quoted at ${app.asset} ${app.kind[0]}${app.strike}`;
+  else if (app.dir === "buy") {
+    cta.textContent = app.postOnly || !matchable
+      ? `Rest bid · ${contracts} @ ${usd(limit)}`
+      : `Buy ${contracts} @ ${usd(limit)}`;
+  } else {
+    cta.textContent = app.postOnly || !matchable
+      ? `Rest offer · ${contracts} @ ${usd(limit)}`
+      : `Sell ${contracts} @ ${usd(limit)}`;
+  }
+  renderRail(row, premium);
+}
+
+function renderRail(row, premium) {
+  const contracts = amount();
+  const { low, high } = row;
+  const cost = premium;
+  const maxProfit = (high - low) - cost;
+  const breakEven = app.kind === "Put" ? high - cost : low + cost;
+  const host = $("rbody");
+  if (app.rtab === "payoff") {
+    host.innerHTML = `
+      <div class="kpi">
+        <div>Max Loss<b class="neg">${usd(cost)}</b></div>
+        <div>Break Even<b>${usd(breakEven)}</b></div>
+        <div>Max Profit<b class="pos">${usd(maxProfit)}</b></div>
+      </div>
+      <canvas class="payoff" id="payoff"></canvas>
+      <div class="dim" style="font-size:12px;margin-top:6px">${contracts} contract${contracts > 1 ? "s" : ""} · payoff at expiry · spot marker is live</div>`;
+    drawPayoff(low, high, cost);
+  } else if (app.rtab === "greeks") {
+    // The engine's own risk table, priced from the same index the quote is.
+    host.innerHTML = `<table class="mini">
+      <tr><td>Delta</td><td>${row.delta.toFixed(4)}</td></tr>
+      <tr><td>Gamma</td><td>${row.gamma.toFixed(5)}</td></tr>
+      <tr><td>Vega (1 vol pt)</td><td>${row.vega.toFixed(3)}</td></tr>
+      <tr><td>Theta (per day)</td><td>${row.theta.toFixed(3)}</td></tr>
+      <tr><td>Mark IV</td><td>${pct(row.markIv)}</td></tr>
+      <tr><td>Collateral / contract</td><td>${usd(high - low)}</td></tr>
+    </table>
+    <div class="dim" style="font-size:12px;margin-top:8px">Black-Scholes, put-skew smile, r = 0, live spot.</div>`;
+  } else if (app.rtab === "trades") {
+    const trades = app.state?.trades ?? [];
+    host.innerHTML = trades.length
+      ? `<div class="log">${trades.slice(0, 18).map((trade) => `<div>${trade}</div>`).join("")}</div>`
+      : `<div class="empty">No prints yet${app.online ? "" : " · daemon offline"}.</div>`;
+  } else {
+    const series = selectedSeries();
+    const bids = series?.bids ?? [];
+    const offers = series?.offers ?? [];
+    const biggest = Math.max(1, ...bids.map((row) => row.quantity), ...offers.map((row) => row.quantity));
+    // Price sits against the centre, the bar grows away from it, the size rides
+    // the outer edge: the two lists read as one book.
+    const rows = (list, side) =>
+      list
+        .slice(0, 6)
+        .map((row) => {
+          const unit = row.quantity > 0 ? row.premium / row.quantity : 0;
+          const bar = `<span class="bar" style="width:${Math.max(4, (row.quantity / biggest) * 64).toFixed(0)}px"></span>`;
+          const size = `<span>${fmt(row.quantity, 0)}</span>`;
+          const price = `<span class="px">${usd(unit)}</span>`;
+          return `<div class="r ${side}">${side === "bid" ? `${size}${bar}${price}` : `${price}${bar}${size}`}</div>`;
+        })
+        .join("") || `<div class="r ${side}">no ${side === "bid" ? "bids" : "offers"}</div>`;
+    host.innerHTML = `<div class="depth">
+        <div class="side">${rows(bids, "bid")}</div>
+        <div class="side">${rows(offers, "ask")}</div>
+      </div>
+      <div class="dim" style="font-size:12px;margin-top:10px">
+        Unit premium per contract, from the live book. Fills are whole quotes:
+        one offer or one bid, never part of one.
+      </div>`;
+  }
+}
+
+function drawPayoff(low, high, cost) {
+  const canvas = $("payoff");
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 320;
+  const height = canvas.clientHeight || 158;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const widthNative = high - low;
+  const lo = low - widthNative * 0.9;
+  const hi = high + widthNative * 0.9;
+  const pad = 6;
+  const padBottom = 14;
+  const maxProfit = widthNative - cost;
+  const yMin = Math.min(-cost * 1.25, -1);
+  const yMax = Math.max(maxProfit * 1.25, widthNative * 0.35, 1);
+  const x = (price) => pad + ((price - lo) / (hi - lo)) * (width - 2 * pad);
+  const y = (value) => height - padBottom - ((value - yMin) / (yMax - yMin)) * (height - padBottom - pad);
+  const payoff = (price) => {
+    const intrinsic = app.kind === "Put"
+      ? Math.max(Math.min(high - price, widthNative), 0)
+      : Math.max(Math.min(price - low, widthNative), 0);
+    return intrinsic - cost;
+  };
+
+  ctx.strokeStyle = "#161e27";
+  for (let index = 0; index <= 4; index += 1) {
+    const value = yMin + ((yMax - yMin) * index) / 4;
+    ctx.beginPath();
+    ctx.moveTo(pad, y(value));
+    ctx.lineTo(width - pad, y(value));
+    ctx.stroke();
+  }
+  const zero = y(0);
+  ctx.strokeStyle = "#26313f";
+  ctx.beginPath();
+  ctx.moveTo(pad, zero);
+  ctx.lineTo(width - pad, zero);
+  ctx.stroke();
+
+  const points = [];
+  for (let index = 0; index <= 90; index += 1) {
+    const price = lo + ((hi - lo) * index) / 90;
+    points.push([x(price), y(payoff(price))]);
+  }
+  const area = () => {
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], zero);
+    for (const [px2, py] of points) ctx.lineTo(px2, py);
+    ctx.lineTo(points[points.length - 1][0], zero);
+    ctx.closePath();
+  };
+  const band = (color, top, bottom) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad, top, width - 2 * pad, bottom - top);
+    ctx.clip();
+    area();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  };
+  band("rgba(34,199,141,.28)", pad, zero);
+  band("rgba(244,82,106,.22)", zero, height - padBottom);
+
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (const [px2, py] of points) ctx.lineTo(px2, py);
+  ctx.strokeStyle = "#e9eff6";
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  const spot = spotFor();
+  if (spot !== null && spot > lo && spot < hi) {
+    ctx.strokeStyle = "rgba(90,162,255,.8)";
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x(spot), pad);
+    ctx.lineTo(x(spot), height - padBottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#5aa2ff";
+    ctx.font = "9px ui-monospace, monospace";
+    const label = `$${fmt(spot, 0)}`;
+    ctx.fillText(label, Math.min(Math.max(x(spot) + 3, pad), width - pad - ctx.measureText(label).width), pad + 8);
+  }
+  ctx.fillStyle = "#68788a";
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.fillText(`$${fmt(lo, 0)}`, pad, height - 3);
+  const hiLabel = `$${fmt(hi, 0)}`;
+  ctx.fillText(hiLabel, width - pad - ctx.measureText(hiLabel).width, height - 3);
+}
+
+function renderBottom() {
+  const host = $("bottom-body");
+  document.querySelectorAll("[data-panel]").forEach((tab) =>
+    tab.setAttribute("aria-selected", String(tab.dataset.panel === app.bottom)));
+  const state = app.state;
+  if (!state) {
+    host.innerHTML = `<div class="empty">Market service offline. Start it with <code>near-mvp/scripts/venue.sh</code>.</div>`;
+    return;
+  }
+  if (app.bottom === "balances") {
+    // Not a roster of bot accounts: the buckets the contract itself reconciles
+    // against its token balance, which is the claim that custody is conserved.
+    const rows = state.custody.buckets.filter((bucket) => bucket.tokens !== 0);
+    host.innerHTML = `<table class="grid"><thead><tr><th>account</th><th>holds</th><th>tokens</th></tr></thead><tbody>
+      <tr><td>${state.you?.account ?? "you"}</td><td>your balance at the venue</td><td class="num">${fmt(state.you?.available ?? 0)}</td></tr>
+      <tr><td>${state.pool.venueAccount}</td><td>the vault: LP equity</td><td class="num">${fmt(state.pool.equity)}</td></tr>
+      ${rows.map((bucket) => `<tr><td>${state.custody.expected >= state.custody.held ? "the contract" : "reconcile"}</td><td>${bucket.name}</td><td class="num">${fmt(bucket.tokens)}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="dim" style="margin-top:8px">Custody ${state.custody.conserved ? "conserved" : "BROKEN"}: expected ${fmt(state.custody.expected)} = held ${fmt(state.custody.held)}.</div>`;
+    return;
+  }
+  if (app.bottom === "positions") {
+    const mine = state.positions.rows;
+    if (!mine.length) { host.innerHTML = `<div class="empty">No open tickets for you yet.</div>`; return; }
+    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>against</th><th>contracts</th><th>cost</th><th>max payout</th></tr></thead><tbody>
+      ${mine.map((ticket) => `<tr><td>${ticket.series}</td><td>${ticket.side}</td>
+        <td>${ticket.againstPool ? "the pool" : "a maker"}</td>
+        <td class="num">${fmt(ticket.contracts, 0)}</td><td class="num">${fmt(ticket.cost)}</td><td class="num">${fmt(ticket.maxPayout)}</td></tr>`).join("")}
+    </tbody></table>`;
+    return;
+  }
+  if (app.bottom === "orders") {
+    if (!state.orders.length) { host.innerHTML = `<div class="empty">Nothing resting: the vault is the counterparty, so every ladder price is the pool's own.</div>`; return; }
+    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>who</th><th>contracts</th><th>premium</th></tr></thead><tbody>
+      ${state.orders.map((order) => `<tr><td>${order.series}</td><td>${order.side}</td><td>${order.who}</td>
+        <td class="num">${fmt(order.size, 2)}</td><td class="num ${order.side === "buy" ? "neg" : "pos"}">${fmt(order.price)}</td></tr>`).join("")}
+    </tbody></table>`;
+    return;
+  }
+  const row = app.strike === null ? null : rowFor(app.kind, app.strike);
+  if (!row) { host.innerHTML = `<div class="empty">Select a strike.</div>`; return; }
+  host.innerHTML = `<table class="grid"><thead><tr><th>cell</th><th>delta</th><th>gamma</th><th>vega</th><th>theta</th><th>mark IV</th></tr></thead><tbody>
+    <tr><td>${app.asset} ${app.kind === "Put" ? "P" : "C"}${fmt(row.low, 0)}/${fmt(row.high, 0)} · per contract</td>
+      <td class="num">${row.delta.toFixed(4)}</td><td class="num">${row.gamma.toFixed(5)}</td>
+      <td class="num">${row.vega.toFixed(3)}</td><td class="num">${row.theta.toFixed(3)}</td>
+      <td class="num">${pct(row.markIv)}</td></tr>
+  </tbody></table>
+  <div class="dim" style="margin-top:8px">The engine's model at the live index, the same numbers its quote is priced from.</div>`;
+}
+
+function renderStatus() {
+  const state = app.live?.index ?? app.feedState;
+  const flow = app.live?.flow;
+  $("s-feed").textContent = state
+    ? `feed ${state.status} · ${state.ticks ?? 0} index prints · ${state.reconnects ?? 0} reconnect${state.reconnects === 1 ? "" : "s"}`
+    : "feed starting";
+  $("s-feed").className = state?.status === "live" ? "good" : state ? "bad" : "";
+  const custody = app.state?.custody;
+  $("s-custody").textContent = custody
+    ? custody.conserved ? `custody ok ${fmt(custody.expected)}` : "CUSTODY BROKEN"
+    : "custody —";
+  $("s-custody").className = custody ? (custody.conserved ? "good" : "bad") : "";
+  const series = app.state?.series;
+  $("s-series").textContent = series
+    ? `${series.kind.toLowerCase()} $${series.low}/${series.high} · ${series.settlement} · ${series.expiry}`
+    : app.online ? "no series selected" : "market service offline";
+  $("s-build").textContent = app.online
+    ? `${app.state?.contract ?? "contract"} · ${app.state?.seriesCount ?? 0} spreads listed`
+    : "market service offline";
+  const book = $("book-state");
+  if (book) {
+    const pool = app.state?.pool;
+    book.textContent = pool
+      ? `pool equity ${fmt(pool.equity)} · reserved ${fmt(pool.reserved)} · ${pool.utilisationBps} bps used · ${flow?.prints ?? 0} tickets this session`
+      : "waiting for the market service";
+  }
+  const toast = app.toast && Date.now() - app.toast.at < 8000 ? app.toast : null;
+  $("s-toast").textContent = toast ? `· ${toast.text}` : "";
+  $("s-toast").className = toast ? (toast.bad ? "bad" : "good") : "";
+}
+
+function syncControls() {
+  document.querySelectorAll("#routes [data-route]").forEach((tab) =>
+    tab.setAttribute("aria-selected", String(tab.dataset.route === app.route)));
+  document.querySelectorAll("#dirs [data-dir]").forEach((button) =>
+    button.setAttribute("aria-selected", String(button.dataset.dir === app.dir)));
+  document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
+    tab.setAttribute("aria-selected", String(tab.dataset.rtab === app.rtab)));
+  $("post-only").setAttribute("aria-pressed", String(app.postOnly));
+}
+
+function ensureSelection() {
+  if (app.strike !== null) return;
+  const rows = ladder();
+  if (!rows.length) return;
+  const spot = spotFor();
+  const target = app.kind === "Put" ? 0.98 : 1.02;
+  app.strike = rows.reduce(
+    (best, strike) => (Math.abs(strike - spot * target) < Math.abs(best - spot * target) ? strike : best),
+    rows[0],
+  );
+}
+
+
+/* ---------------- stats and fees pages ---------------- */
+/// Derive's public numbers, read off its Stats page on 2026-10-28. The trade
+/// count is a lifetime figure while the volume is a 24h one, so they cannot be
+/// divided to get a per-second rate — only ratios inside the same window are
+/// used below.
+const DERIVE = {
+  volume24h: 68_790_000, volumeLifetime: 43_090_000_000, tradesLifetime: 5_230_000,
+  feesLifetime: 10_930_000, openInterest: 4_210_000_000, traders: 27_208,
+};
+const DERIVE_RATE = {
+  // Same-window ratios only: 24h volume over 86,400 seconds, and lifetime
+  // volume over lifetime trades.
+  notional: DERIVE.volume24h / 86_400,
+  perTrade: DERIVE.volumeLifetime / DERIVE.tradesLifetime,
+  feeShare: DERIVE.feesLifetime / DERIVE.volumeLifetime,
+};
+
+function compact(value) {
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `$${(value / 1e3).toFixed(1)}k`;
+  return `$${value.toFixed(0)}`;
+}
+
+function setPage(page) {
+  app.page = page;
+  document.querySelectorAll("[data-page]").forEach((button) =>
+    button.setAttribute("aria-selected", String(button.dataset.page === page)));
+  for (const id of ["trade", "positions", "stats", "vault", "fees"]) {
+    document.getElementById(`page-${id}`).classList.toggle("on", id === page);
+  }
+  $("s-page").textContent = page === "trade" ? "options" : page;
+  if (page === "positions") renderPositions();
+  if (page === "stats") renderStats();
+  if (page === "vault") renderVault();
+}
+
+/// The vault rail. Every figure is the contract's own: the exit value comes from
+/// `get_lp_value`, which is the withdrawal's arithmetic read-only, and the test
+/// for leaving is whether the free equity still covers the open worst cases.
+function renderVault() {
+  const state = app.state;
+  const put = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+  const ids = ["v-cash", "v-shares", "v-exit", "v-equity", "v-free", "v-reserved", "v-venue", "v-locked", "v-consolation", "v-tickets"];
+  if (!state) {
+    for (const id of ids) put(id, "—");
+    put("v-lp-note", "market service offline · run scripts/venue.sh");
+    return;
+  }
+  const pool = state.pool;
+  put("v-account", state.you.account);
+  put("v-cash", usd(state.you.available));
+  put("v-wallet", usd(state.you.wallet));
+  put("v-shares", fmt(state.lp.shares, 2));
+  // Leaving the whole vault is the usual intent, so the box offers all of it —
+  // unless the visitor is typing in there.
+  const redeemBox = $("v-shares-in");
+  if (redeemBox && document.activeElement !== redeemBox) redeemBox.value = String(Number(state.lp.shares.toFixed(6)));
+  put("v-exit", usd(state.lp.value));
+  put("v-equity", usd(pool.equity));
+  put("v-free", usd(pool.freeEquity));
+  put("v-reserved", usd(pool.reserved));
+  put("v-venue", usd(pool.venue));
+  put("v-locked", usd(pool.venueLocked));
+  put("v-consolation", usd(pool.consolation));
+  put("v-tickets", String(pool.openTickets));
+  put("v-util", `${pool.utilisationBps} bps committed`);
+  put("v-lp-note", state.lp.shares === 0
+    ? "You hold no shares. Entering the vault makes you the counterparty to every ticket this venue writes."
+    : state.lp.exitable
+      ? `Your shares redeem ${usd(state.lp.value)} and ${usd(pool.freeEquity)} is free to pay it.`
+      : `Your shares redeem ${usd(state.lp.value)}, but only ${usd(pool.freeEquity)} is uncommitted: the vault keeps the rest against open tickets until each one settles.`);
+  // A click that cannot pay is not a click: gate each button against the
+  // balance its own action draws from, before the transaction rejects.
+  gateVault();
+  put("v-cash-note", state.you.wallet <= 0
+    ? "Your wallet holds no USDT, so there is nothing to deposit: the venue is already credited. Withdraw sends it back to the wallet."
+    : "Deposit moves USDT from your wallet to the venue, withdraw moves it back. Both are asynchronous, so the balance follows the receipt.");
+  const custody = $("v-custody");
+  if (custody) {
+    custody.tBodies[0].innerHTML = state.custody.buckets
+      .map((bucket) => `<tr><td class="name">${bucket.name}</td><td>${fmt(bucket.tokens, 6)}</td></tr>`)
+      .join("");
+  }
+  put("v-custody-note", state.custody.conserved
+    ? `expected ${fmt(state.custody.expected, 6)} = held ${fmt(state.custody.held, 6)}`
+    : `MISMATCH · expected ${fmt(state.custody.expected, 6)} · held ${fmt(state.custody.held, 6)}`);
+}
+
+/// Which funding clicks are possible right now. Each action draws from a
+/// different balance — the wallet, the venue cash, the share count — so the
+/// amount in the box decides, and a rejected transaction never has to be the
+/// thing that explains it.
+function gateVault() {
+  const state = app.state;
+  if (!state) return;
+  const amount = Number($("v-amount")?.value);
+  const shares = Number($("v-shares-in")?.value);
+  const ok = Number.isFinite(amount) && amount > 0;
+  const cash = state.you?.available ?? 0;
+  const wallet = state.you?.wallet ?? 0;
+  const held = state.lp?.shares ?? 0;
+  const set = (id, blocked) => {
+    const button = $(id);
+    if (button) button.disabled = !app.online || blocked;
+  };
+  set("v-deposit", !ok || wallet < amount);
+  set("v-withdraw", !ok || cash < amount);
+  set("v-enter", !ok || cash < amount);
+  set("v-redeem", !(Number.isFinite(shares) && shares > 0) || shares > held);
+}
+
+/// Money in and out of the venue. The gateway plans the calls and the contract
+/// moves the balance; nothing here decides what an amount is worth.
+async function fund(type, value, unit) {
+  if (!app.online || !Number.isFinite(value) || value <= 0) {
+    app.toast = { text: "enter an amount above zero", at: Date.now(), bad: true };
+    renderStatus();
+    return;
+  }
+  const body = { type, [unit]: value };
+  try {
+    const response = await fetch(`${MARKET_URL}/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error);
+    app.toast = { text: `${type} · ${result.message}`, at: Date.now() };
+  } catch (error) {
+    app.toast = { text: `${type} rejected · ${error.message}`, at: Date.now(), bad: true };
+  }
+  await poll();
+  renderAll();
+}
+
+function renderStats() {
+  const state = app.state;
+  if (!state) {
+    $("st-tps").textContent = "—";
+    $("compare-table").tBodies[0].innerHTML = `<tr><td colspan="4" class="note">market service offline · run scripts/venue.sh</td></tr>`;
+    return;
+  }
+  const buckets = state.volumeBuckets ?? [];
+  const flow = state.tape ?? { prints: 0, realised: 0, closed: [] };
+  const recent = buckets.slice(-11, -1);
+  const window = recent.reduce(
+    (total, bucket) => ({
+      notional: total.notional + bucket.notional,
+      premium: total.premium + bucket.premium,
+      trades: total.trades + bucket.trades,
+      contracts: total.contracts + bucket.contracts,
+    }),
+    { notional: 0, premium: 0, trades: 0, contracts: 0 },
+  );
+  const seconds = Math.max(1, recent.length);
+  const notionalPerSecond = window.notional / seconds;
+  const premiumPerSecond = window.premium / seconds;
+  const fillsPerSecond = window.trades / seconds;
+  const contractsPerSecond = window.contracts / seconds;
+  const averagePrint = window.trades ? window.notional / window.trades : 0;
+
+  $("st-tps").textContent = fillsPerSecond.toFixed(1);
+  $("st-cps").textContent = contractsPerSecond.toFixed(1);
+  $("st-pps").textContent = compact(premiumPerSecond);
+  $("st-nps").textContent = compact(notionalPerSecond);
+  $("st-prints").textContent = flow.prints.toLocaleString("en-US");
+  $("st-series").textContent = String(state.seriesCount);
+
+  const rows = [
+    ["Notional per second", compact(notionalPerSecond), compact(DERIVE_RATE.notional), `${(notionalPerSecond / DERIVE_RATE.notional).toFixed(0)}×`,
+      "Derive: its 24h notional spread over the day."],
+    ["Average print", compact(averagePrint), compact(DERIVE_RATE.perTrade), `${(averagePrint / DERIVE_RATE.perTrade).toFixed(3)}×`,
+      "Derive: lifetime notional over lifetime trades. Ours: the tickets this venue has actually written."],
+    ["Notional in 24h at this rate", compact(notionalPerSecond * 86_400), compact(DERIVE.volume24h), `${((notionalPerSecond * 86_400) / DERIVE.volume24h).toFixed(0)}×`,
+      "Extrapolated from a rate held for a full day, which this service has not run for."],
+    ["Fills per second", fillsPerSecond.toFixed(1), "not published", "—",
+      "Derive publishes a lifetime trade count, not a rate, so there is no per-second figure to divide."],
+    ["Fees taken", `${(state.pool.venue).toFixed(2)} earned · ${(state.pool.venueLocked).toFixed(2)} locked`, `${(DERIVE_RATE.feeShare * 100).toFixed(3)}% of volume`, "—",
+      "The vault's margin sits inside the entry premium: it is charged on every ticket, not on the notional."],
+  ];
+  $("compare-table").tBodies[0].innerHTML = rows
+    .map(([metric, ours, theirs, ratio, note]) => `<tr><td class="name">${metric}<div class="note">${note}</div></td><td>${ours}</td><td>${theirs}</td><td>${ratio}</td></tr>`)
+    .join("");
+
+  const tail = buckets.slice(-9).reverse();
+  $("bucket-table").tBodies[0].innerHTML = tail
+    .map((bucket) => `<tr><td class="name">${new Date(bucket.t * 1000).toISOString().slice(11, 19)}</td>
+      <td>${bucket.trades}</td><td>${(bucket.contracts ?? 0).toFixed(1)}</td>
+      <td>${compact(bucket.premium)}</td><td>${compact(bucket.notional)}</td></tr>`)
+    .join("") || `<tr><td colspan="5" class="note">no whole seconds recorded yet</td></tr>`;
+
+  drawVolumeChart(buckets);
+}
+
+// One money rule for profit and loss: a typographic sign, then the same
+// adaptive precision every other figure on the page uses. A −$0.004 loss is
+// real and must not round into looking like a scratch.
+function signedMoney(value) {
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return `${sign}${usd(Math.abs(value))}`;
+}
+
+function renderPositions() {
+  const state = app.state;
+  if (!state) {
+    $("pf-open").textContent = "—";
+    $("pf-table").tBodies[0].innerHTML = `<tr><td colspan="9" class="note">market service offline · run scripts/venue.sh</td></tr>`;
+    return;
+  }
+  const { rows, totals } = state.positions;
+  const you = state.you;
+  const money = (value) => Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const openCell = $("pf-open");
+  openCell.textContent = rows.length ? signedMoney(totals.open) : "$0.00";
+  openCell.className = `value ${totals.open > 0 ? "pos" : totals.open < 0 ? "neg" : ""}`;
+  const realisedCell = $("pf-realised");
+  const closed = state.tape?.closed ?? [];
+  realisedCell.textContent = closed.length ? signedMoney(state.tape.realised) : "$0.00";
+  realisedCell.className = `value ${state.tape?.realised > 0 ? "pos" : state.tape?.realised < 0 ? "neg" : ""}`;
+  $("pf-cash").textContent = you ? `$${money(you.available)}` : "—";
+  $("pf-risk").textContent = `$${money(totals.atRisk)}`;
+  $("pf-count").textContent = String(totals.positions);
+  $("pf-closable").textContent = `${totals.closable} can be closed now`;
+  $("pf-sub").textContent = rows.length
+    ? `${rows.length} ticket${rows.length > 1 ? "s" : ""} held, marked at index ${spotFor() === null ? "—" : usd(spotFor(), 2)}.`
+    : "Nothing open yet. Pick a strike in the chain to buy a spread.";
+
+  $("pf-table").tBodies[0].innerHTML = rows.length
+    ? rows
+        .map(
+          (row) => `<tr>
+          <td class="name">${row.series}</td>
+          <td class="${row.side === "long" ? "pos" : "neg"}">${row.side}</td>
+          <td>${row.contracts.toFixed(0)}</td>
+          <td>${usd(row.cost)}</td>
+          <td>${usd(row.mark)}</td>
+          <td>${row.exitUnit === null ? "—" : usd(row.exitUnit)}</td>
+          <td class="${(row.open ?? 0) > 0 ? "pos" : (row.open ?? 0) < 0 ? "neg" : ""}">${row.open === null ? "—" : signedMoney(row.open)}</td>
+          <td>${row.expiry}</td>
+          <td>${row.closable
+            ? `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ≥ ${usd(row.exitUnit)}</button>`
+            : `<span class="state">${row.closeBlock}</span>`}</td>
+        </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="9" class="note">No open tickets. Buy a spread from the chain, or post a bid and let a seller take it.</td></tr>`;
+
+  $("pf-history").tBodies[0].innerHTML = closed.length
+    ? closed
+        .slice(0, 12)
+        .map(
+          (row) => `<tr>
+          <td class="name">${row.at}</td>
+          <td>${row.series}</td>
+          <td class="${row.side === "long" ? "pos" : "neg"}">${row.side}</td>
+          <td>${row.contracts.toFixed(0)}</td>
+          <td>${usd(row.cost)}</td>
+          <td>${usd(row.proceeds)}</td>
+          <td class="${row.pnl > 0 ? "pos" : row.pnl < 0 ? "neg" : ""}">${signedMoney(row.pnl)}</td>
+          <td>${row.via}</td>
+        </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="8" class="note">Nothing closed or settled yet.</td></tr>`;
+
+  $("pf-table").querySelectorAll("[data-close]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const [seriesKey, ticketId] = button.dataset.close.split("#");
+      const [, , kind, strike] = seriesKey.split("|");
+      closePosition(kind, Number(strike), ticketId, Number(button.dataset.limit), Number(button.dataset.contracts));
+    }));
+}
+
+async function closePosition(kind, strike, ticket, limit, contracts) {
+  const body = { type: "close", asset: app.asset, kind, strike, ticket, quantity: contracts, limit, expiry: expiryStamp() };
+  try {
+    const response = await fetch(`${MARKET_URL}/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error);
+    app.toast = { text: `ticket ${ticket} ${result.message}`, at: Date.now() };
+  } catch (error) {
+    app.toast = { text: `close rejected · ${error.message}`, at: Date.now(), bad: true };
+  }
+  await poll();
+  renderPositions();
+}
+
+function drawVolumeChart(buckets) {
+  const canvas = $("volume-chart");
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 640;
+  const height = canvas.clientHeight || 200;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const pad = { l: 44, r: 8, t: 10, b: 20 };
+  const plotW = width - pad.l - pad.r;
+  const plotH = height - pad.t - pad.b;
+  const values = buckets.length ? buckets.map((bucket) => bucket.notional) : [0];
+  const peak = Math.max(...values, 1);
+  const top = Math.pow(10, Math.ceil(Math.log10(peak + 1)));
+  const y = (value) => pad.t + plotH - (Math.log10(Math.max(value, 1)) / Math.log10(top)) * plotH;
+
+  ctx.strokeStyle = "#18212b";
+  ctx.fillStyle = "#68788a";
+  ctx.font = "9px ui-monospace, monospace";
+  for (let exponent = 3; exponent <= Math.log10(top); exponent += 1) {
+    const lineY = y(Math.pow(10, exponent));
+    ctx.beginPath();
+    ctx.moveTo(pad.l, lineY);
+    ctx.lineTo(width - pad.r, lineY);
+    ctx.stroke();
+    ctx.fillText(compact(Math.pow(10, exponent)), 4, lineY + 3);
+  }
+
+  const barWidth = plotW / Math.max(buckets.length, 60);
+  buckets.forEach((bucket, index) => {
+    const barHeight = pad.t + plotH - y(bucket.notional);
+    ctx.fillStyle = "#1fd18f";
+    ctx.fillRect(pad.l + index * barWidth + 1, y(bucket.notional), Math.max(barWidth - 2, 1), Math.max(barHeight, 1));
+  });
+
+  const referenceY = y(DERIVE_RATE.notional);
+  ctx.strokeStyle = "#5aa2ff";
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(pad.l, referenceY);
+  ctx.lineTo(width - pad.r, referenceY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#5aa2ff";
+  ctx.fillText("Derive / second", pad.l + 4, referenceY - 4);
+  ctx.fillStyle = "#68788a";
+  ctx.fillText("60s ago", pad.l, height - 6);
+  const endLabel = "now";
+  ctx.fillText(endLabel, width - pad.r - ctx.measureText(endLabel).width, height - 6);
+}
+
+function renderAll() {
+  ensureSelection();
+  renderExpiries();
+  renderIndex();
+  renderBanner();
+  renderTape();
+  renderChain();
+  renderTicket();
+  renderBottom();
+  renderStatus();
+  syncControls();
+  if (app.page === "stats") renderStats();
+  if (app.page === "positions") renderPositions();
+  if (app.page === "vault") renderVault();
+}
+
+/* ---------------- wiring ---------------- */
+$("asset").addEventListener("click", () => {
+  app.asset = app.asset === "ETH" ? "BTC" : "ETH";
+  app.strike = null;
+  app.seen.clear();
+  startStream();
+  poll();
+});
+document.querySelectorAll("#routes [data-route]").forEach((tab) =>
+  tab.addEventListener("click", () => { app.route = tab.dataset.route; renderAll(); }));
+document.querySelectorAll("#dirs [data-dir]").forEach((button) =>
+  button.addEventListener("click", () => { app.dir = button.dataset.dir; renderAll(); }));
+document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
+  tab.addEventListener("click", () => { app.rtab = tab.dataset.rtab; renderAll(); }));
+document.querySelectorAll("#bottom-tabs [data-panel]").forEach((tab) =>
+  tab.addEventListener("click", () => { app.bottom = tab.dataset.panel; renderAll(); }));
+$("post-only").addEventListener("click", () => { app.postOnly = !app.postOnly; syncControls(); renderTicket(); });
+$("cta").addEventListener("click", () => act(app.dir === "buy" ? "buy" : "sell"));
+$("amount").addEventListener("input", () => { app.userSized = true; renderTicket(); });
+$("price").addEventListener("input", renderTicket);
+$("order-type").addEventListener("change", () => {
+  if ($("order-type").value === "market") app.postOnly = false;
+  syncControls();
+  renderTicket();
+});
+$("rail-feed").addEventListener("click", () => { app.rtab = "book"; renderAll(); });
+$("rail-greeks").addEventListener("click", () => { app.rtab = "greeks"; app.bottom = "greeks"; renderAll(); });
+$("rail-book").addEventListener("click", () => { app.bottom = "orders"; app.rtab = "book"; renderAll(); });
+$("rail-positions").addEventListener("click", () => { app.bottom = "positions"; renderAll(); });
+$("rail-history").addEventListener("click", () => { app.rtab = "trades"; renderAll(); });
+document.querySelectorAll("[data-page]").forEach((button) =>
+  button.addEventListener("click", () => setPage(button.dataset.page)));
+$("rail-docs").addEventListener("click", () => { $("price-hint").textContent = "docs · near-mvp/README.md and docs/06"; });
+$("rail-support").addEventListener("click", () => { $("price-hint").textContent = "support · local prototype, nothing to page"; });
+$("bell").addEventListener("click", () => { app.rtab = "book"; renderAll(); });
+$("wallet").addEventListener("click", () => { $("price-hint").textContent = "no wallet by design · orders go to the local market service"; });
+
+const actions = document.createElement("div");
+actions.style.cssText = "padding:0 16px 14px;display:flex;gap:8px";
+actions.innerHTML = `<button class="cta" id="expire" style="margin:0;flex:1;background:transparent;color:var(--ink);border:1px solid var(--line-2);font-weight:400">Expire · live print</button>
+  <button class="cta" id="settle" style="margin:0;flex:1;background:transparent;color:var(--ink);border:1px solid var(--line-2);font-weight:400">Settle tickets</button>`;
+$("rbody").before(actions);
+for (const id of ["v-amount", "v-shares-in"]) {
+  $(id).addEventListener("input", gateVault);
+}
+$("v-deposit").addEventListener("click", () => fund("deposit", Number($("v-amount").value), "amount"));
+$("v-withdraw").addEventListener("click", () => fund("withdraw", Number($("v-amount").value), "amount"));
+$("v-enter").addEventListener("click", () => fund("pool-deposit", Number($("v-amount").value), "amount"));
+$("v-redeem").addEventListener("click", () => fund("pool-withdraw", Number($("v-shares-in").value), "shares"));
+$("wallet").addEventListener("click", () => setPage("vault"));
+$("expire").addEventListener("click", () => act("expire"));
+$("settle").addEventListener("click", () => act("settle"));
+
+window.addEventListener("error", (event) => {
+  const banner = document.getElementById("banner");
+  if (banner) banner.innerHTML = `<span class="bad">render error: ${event.message}</span>`;
+});
+
+startStream();
+try {
+  renderAll();
+} catch (error) {
+  console.error("first render failed", error);
+}
+// `/state` is the heavy read — the registry, every book, the vault — so it runs
+// on a second rather than a heartbeat, and the push channel carries the index
+// between the polls.
+poll();
+setInterval(poll, 1_000);
+</script>
+</body>
+</html>

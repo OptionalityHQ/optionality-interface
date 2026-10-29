@@ -1,0 +1,16 @@
+{
+  "name": "near-mvp",
+  "version": "1.0.0",
+  "description": "A fully collateralized, cash-settled **put-spread protection ticket** on NEAR. This is the first-stage implementation of option A in [the hackathon MVP design](../docs/04-near-hackathon-mvp.md). It is built and tested locally against the NEAR sandbox; it is **not deployed** and no wallet or funds were used.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "near-api-js": "^4.0.4"
+  }
+}
