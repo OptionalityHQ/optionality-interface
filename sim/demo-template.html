@@ -381,7 +381,7 @@
         <button data-panel="positions">Positions</button>
         <button data-panel="orders">Orders</button>
         <button data-panel="greeks">Greeks</button>
-        <div class="tools"><span id="book-state">waiting for the market service</span></div>
+        <div class="tools"><span id="book-state">waiting for the gateway</span></div>
       </div>
       <div class="body" id="bottom-body"></div>
     </div>
@@ -511,8 +511,8 @@
           <p class="note" style="color:var(--dim);font-size:11px;margin:12px 0 0">
             Derive figures read from its Stats page on 2026-10-28: $68.79M 24h volume, $43.09B lifetime, 5.23M
             lifetime trades, $10.93M fees. Lifetime spans 367 days, so its average rate is about 0.165 trades/s.
-            This tape is deliberately pinned near 50 fills/s — a load test, which is why the notional ratio runs in
-            the thousands. Run <code>node sim/market-daemon.mjs --tps 1</code> for a Derive-paced tape.
+            This tape is what the chain has actually written, counted from the tickets the gateway can see, so the
+            rate is a prototype's rate and the ratios are context rather than a claim.
           </p>
         </section>
       </div>
@@ -595,53 +595,90 @@
   <main class="page" id="page-fees">
     <div class="page-head">
       <h1>Fees and how a premium is built</h1>
-      <p>This prototype charges nothing. Rather than invent a tier table, here is the real schedule on Derive and
-        the exact arithmetic this screen uses for premium, collateral and payoff.</p>
+      <p>The pool is the counterparty to every ticket, so there is no separate fee line to be billed: the venue's
+        margin is already inside the price you pay to open, and the price you are offered to close early already has
+        its haircut taken out. Both numbers are read from the contract, not typed into this page.</p>
     </div>
     <div class="page-body">
       <section class="panel">
-        <h2>Fee schedule <span>this prototype</span></h2>
+        <h2>What the venue charges <span id="f-terms">read from the contract</span></h2>
         <table class="data">
-          <thead><tr><th>line</th><th>maker</th><th>taker</th><th>note</th></tr></thead>
+          <thead><tr><th>line</th><th>rate</th><th>where it is charged</th></tr></thead>
           <tbody>
-            <tr><td class="name">Options</td><td>0.00%</td><td>0.00%</td><td class="note">no fee module exists in the contract</td></tr>
-            <tr><td class="name">Settlement</td><td>0.00%</td><td>0.00%</td><td class="note">permissionless, caller pays gas only</td></tr>
-            <tr><td class="name">Withdrawal</td><td>—</td><td>0.00%</td><td class="note">NEP-141 transfer, 1 yoctoNEAR attached</td></tr>
+            <tr><td class="name">Entry margin</td><td id="f-margin">—</td>
+              <td class="note">Inside the premium you pay to open. Nothing is billed afterwards.</td></tr>
+            <tr><td class="name">Early-close haircut</td><td id="f-impact">—</td>
+              <td class="note">Inside the price the pool pays you back. Holding to expiry pays no haircut.</td></tr>
+            <tr><td class="name">Settlement</td><td>none</td>
+              <td class="note">Permissionless: anyone can post the print and settle a ticket, and pays gas only.</td></tr>
+            <tr><td class="name">Deposit / withdrawal</td><td>none</td>
+              <td class="note">NEP-141 transfer with 1 yoctoNEAR attached; the network fee is the whole cost.</td></tr>
           </tbody>
         </table>
+        <p class="note">Rounding is not neutral and is deliberately one-way: the entry premium rounds up and the exit
+          value rounds down, so both of the cases someone could argue about favour the pool by at most one unit of
+          the token, and never in a way a share price can drift on.</p>
       </section>
 
       <div class="split">
         <section class="panel">
-          <h2>Derive's published option tiers <span>for scale</span></h2>
-          <table class="data">
-            <thead><tr><th>28d volume</th><th>maker</th><th>taker</th></tr></thead>
-            <tbody>
-              <tr><td class="name">≥ $500M or ≥ 7.5% share</td><td>-0.005%</td><td>0.0075%</td></tr>
-              <tr><td class="name">≥ $250M</td><td>-0.0013%</td><td>0.0125%</td></tr>
-              <tr><td class="name">≥ $50M</td><td>0.00%</td><td>0.015%</td></tr>
-              <tr><td class="name">&lt; $50M</td><td>0.01%</td><td>0.03%</td></tr>
-            </tbody>
-          </table>
-          <p style="color:var(--dim);font-size:11px;margin:12px 0 0">Read from Derive's Fees page on 2026-10-28.
-            Negative maker fees are rebates for verified market makers. Our prototype has no such module.</p>
-        </section>
-        <section class="panel">
-          <h2>The arithmetic on this screen</h2>
+          <h2>The arithmetic</h2>
           <div class="prose">
-            <h3>Premium</h3>
-            <code>mark = put(high) − put(low)</code> (calls mirrored), Black-Scholes with a put-skew smile
-            <code>σ(K) = σ_atm · (1 + 0.35 · ln(S/K))</code>, r = 0. The quote is <code>mark ± max(4% · mark, 0.02)</code>;
-            you pay the resting price, never the mark.
-            <h3>Collateral</h3>
-            <code>ceil(contracts · (high − low))</code> — a $100-wide ETH spread reserves $100 per contract,
-            posted by the seller.
-            <h3>Payoff at expiry</h3>
-            <code>floor(contracts · clamp(high − S, 0, width))</code> for puts, <code>clamp(S − low, 0, width)</code> for
-            calls. Void returns premium and collateral.
+            <h3>Mark</h3>
+            <code>mark = put(high) − put(low)</code>, calls mirrored. Black-Scholes on the median of three venues with
+            a put-skew smile <code>σ(K) = σ_atm · (1 + 0.35 · ln(S/K))</code>, r = 0. The engine, not this page, does
+            the maths.
+            <h3>Entry premium</h3>
+            <code>ceil(contracts · mark · (1 + <span id="f-margin-2">margin</span>) / scale)</code> — what the ticket
+            costs. The buyer pays it once and it is never itemised on the ticket.
+            <h3>Split of that premium</h3>
+            <code>venue = floor(premium · margin ÷ (1 + margin))</code>, the rest joins the pool's equity. So of a
+            <span id="f-margin-3">margin</span> uplift, <span id="f-venue-share">—</span> of the premium is the
+            venue's and the remainder is the vault's own money — which is why it counts against what the vault can
+            afford to write.
+            <h3>Early close</h3>
+            <code>floor(contracts · mark · (1 − <span id="f-impact-2">haircut</span>) / scale)</code> — what the pool
+            pays to take the ticket back.
+            <h3>Collateral and payoff</h3>
+            <code>max payout = contracts · width</code>. The pool keeps the premium it collected, so what it actually
+            risks is the worst case minus that; a ticket is only written while its reserve still fits inside equity.
+            At expiry the ticket pays <code>clamp(high − S, 0, width)</code> for a put and
+            <code>clamp(S − low, 0, width)</code> for a call, per contract, always rounded down.
           </div>
         </section>
+        <section class="panel">
+          <h2>Where the margin has got to <span class="dim" id="f-session"></span></h2>
+          <table class="data">
+            <tbody>
+              <tr><td class="name">Margin on tickets still open (a void returns it, so nobody may spend it)</td><td id="f-locked">—</td></tr>
+              <tr><td class="name">Margin earned, sweepable by the venue</td><td id="f-earned">—</td></tr>
+              <tr><td class="name">Consolation pot</td><td id="f-consolation">—</td></tr>
+              <tr><td class="name">Vault equity behind the open tickets</td><td id="f-equity">—</td></tr>
+              <tr><td class="name">Committed against worst cases</td><td id="f-reserved">—</td></tr>
+            </tbody>
+          </table>
+          <p class="note">The venue's slice on an open ticket is collateral against a refund, not revenue: sweeping it
+            early would leave a void with nothing to pay from. It becomes sweepable only once the ticket has settled,
+            closed or voided — and a sweep never touches equity, so collecting fees cannot dilute a share.</p>
+        </section>
       </div>
+
+      <section class="panel">
+        <h2>Derive's published option tiers <span>for scale</span></h2>
+        <table class="data">
+          <thead><tr><th>28d volume</th><th>maker</th><th>taker</th></tr></thead>
+          <tbody>
+            <tr><td class="name">≥ $500M or ≥ 7.5% share</td><td>-0.005%</td><td>0.0075%</td></tr>
+            <tr><td class="name">≥ $250M</td><td>-0.0013%</td><td>0.0125%</td></tr>
+            <tr><td class="name">≥ $50M</td><td>0.00%</td><td>0.015%</td></tr>
+            <tr><td class="name">&lt; $50M</td><td>0.01%</td><td>0.03%</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Read from Derive's Fees page on 2026-10-28, on a maker-taker book. Its taker tiers are a
+          fraction of a percent because a two-sided book earns the spread as well; a pool that is the only
+          counterparty has to earn its whole cost of holding risk inside one number, which is why the entry margin
+          above is two orders of magnitude larger than those rates.</p>
+      </section>
     </div>
   </main>
 
@@ -656,23 +693,20 @@
 </footer>
 
 <script type="module">
-/*BUNDLE*/
-const SNAPSHOT = /*SNAPSHOT*/null/*END*/;
-
-/* The market lives in sim/market-daemon.mjs. This screen is a client: it polls
-   /state, posts /action, and falls back to model quotes when the daemon is down.
-   The daemon serves this file too, and rewrites the origin below to its own
-   port, so http://127.0.0.1:8787 is the whole product with one command. */
-const MARKET_URL = "http://127.0.0.1:8787";
-const SCALE = 1_000_000n;
+/* This screen is a client. It polls /state and posts /action on the gateway,
+   which reads the contract and forwards the transaction; the gateway serves
+   this file and rewrites the origin below to its own port, so
+   http://127.0.0.1:8790 is the whole product with one command. Nothing here
+   prices, reserves or settles anything. */
+const MARKET_URL = "http://127.0.0.1:8790";
 
 const app = {
   asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy", route: "auto",
-  postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false,
+  postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false, pendingSelect: false,
   userSized: false,
   feedState: null, expiries: [], renderedTicks: -1, lastError: null,
-  /* The daemon pushes index prints, book heads and fills on /stream; /state
-     stays the slow, heavy snapshot. `seen` holds the last rendered value of
+  /* The gateway pushes index prints and fills on /stream; /state stays the
+     slow, heavy read of the chain. `seen` holds the last rendered value of
      every figure so a change can be marked rather than silently repainted. */
   live: null, stream: null, seen: new Map(), chainSig: "",
 };
@@ -783,6 +817,7 @@ async function poll() {
     app.state = await response.json();
     app.online = true;
     app.lastError = null;
+    app.pendingSelect = false;
     if (!app.expiries.length) {
       app.expiries = app.state.expiries ?? [];
       chooseLiveExpiry();
@@ -790,6 +825,7 @@ async function poll() {
   } catch (error) {
     app.online = false;
     app.lastError = String(error.message ?? error);
+    app.pendingSelect = false;
     app.state = null;
   }
   renderAll();
@@ -889,7 +925,7 @@ function renderIndex() {
     const summary = app.live?.index?.assets?.[asset] ?? app.feedState?.assets?.[asset];
     const node = $(`idx-${asset}`);
     if (!node) continue;
-    const price = summary?.median ?? SNAPSHOT?.assets?.[asset]?.series?.spot ?? null;
+    const price = summary?.median ?? null;
     const pxNode = node.querySelector("[data-px]");
     pxNode.textContent = price === null ? "—" : price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     pxNode.className = `px num${flash(`idx-${asset}`, price)}`;
@@ -922,7 +958,7 @@ function renderTape() {
 /// them into noise.
 function renderBanner() {
   const state = app.live?.index ?? app.feedState;
-  const daemon = app.state;
+  const venueState = app.state;
   if (!state) { $("banner").innerHTML = "connecting to Binance, Coinbase and Bybit…"; return; }
   const venue = (name) => name.charAt(0).toUpperCase() + name.slice(1);
   const narrow = window.innerWidth < 900;
@@ -947,9 +983,9 @@ function renderBanner() {
   }
   if (!narrow) parts.push(`<b>${state.ticks ?? 0}</b> index prints`);
   parts.push(
-    daemon
-      ? `<b>${daemon.seriesCount}</b> spreads quoted · <b>${app.live?.flow?.prints ?? 0}</b> fills this session`
-      : `<span class="neg">market service offline</span> · run <code>scripts/market.sh</code>`,
+    venueState
+      ? `<b>${venueState.seriesCount}</b> spreads quoted · <b>${app.live?.flow?.prints ?? 0}</b> fills this session`
+      : `<span class="neg">gateway offline</span> · run <code>scripts/venue.sh</code>`,
   );
   $("banner").innerHTML = parts.map((part) => `<span>${part}</span>`).join(' <span class="sep">|</span> ');
 }
@@ -1035,7 +1071,7 @@ function renderChain(force = false) {
     if (index === markerIndex) {
       html.push(`<tr class="spot"><td colspan="${cols.length * 2 + 1}"><div class="spotline">
         <span class="bar"></span>
-        <span class="tag">${app.asset} ${usd(spot, 2)}<span class="dim">${isLive() ? "index" : "snapshot"}</span></span>
+        <span class="tag">${app.asset} ${usd(spot, 2)}<span class="dim">index</span></span>
         <span class="bar"></span>
       </div></td></tr>`);
     }
@@ -1089,12 +1125,27 @@ function renderChain(force = false) {
         app.kind = td.dataset.kind;
         app.dir = td.classList.contains("ask") ? "buy" : "sell";
         app.strike = strike;
+        // Paint the selection immediately. The ladder is already on screen, so
+        // making someone wait a round trip to see what they clicked reads as a
+        // freeze — but the series card is not theirs yet, and quoting the one
+        // they just left would be worse than the pause.
+        app.pendingSelect = true;
+        renderChain(true);
+        renderTicket();
         poll();
       }));
   });
 }
 
 function renderTicket() {
+  if (app.pendingSelect) {
+    $("title").textContent = `${app.asset} ${app.strike} ${app.kind} Spread`;
+    $("subtitle").textContent = "reading this series from the chain";
+    $("price-hint").textContent = "the ladder is live; the series card arrives with the next read";
+    $("cta").disabled = true;
+    $("cta").textContent = "Loading this series";
+    return;
+  }
   const series = selectedSeries();
   const row = app.strike === null ? null : rowFor(app.kind, app.strike);
   if (app.strike === null || !row) {
@@ -1102,7 +1153,7 @@ function renderTicket() {
     $("subtitle").textContent = "click a call or put price";
     $("cta").disabled = true;
     $("cta").textContent = "Select a strike";
-    $("price-hint").textContent = app.online ? "pick a side and a strike" : "market service offline";
+    $("price-hint").textContent = app.online ? "pick a side and a strike" : "gateway offline";
     return;
   }
   sizeTicket();
@@ -1119,11 +1170,15 @@ function renderTicket() {
   // limit the visitor sees is the limit the ticket is sent with.
   const digits = reference > 0 && reference < 0.1 ? 4 : 2;
   if (document.activeElement !== $("price")) $("price").value = reference.toFixed(digits);
+  // A resting size is only information when something is resting. With an empty
+  // book the other side is the vault, and it does not have a size to show.
+  const depth = (size) =>
+    size > 0 ? `× ${size.toFixed(0)} resting` : "the vault writes it, any size it can cover";
   $("price-hint").innerHTML = app.postOnly
     ? `${app.dir === "buy" ? "Resting bid" : "Resting offer"} at <b>${usd(reference)}</b> · best ${app.dir === "buy" ? `bid ${usd(row.bid)}` : `ask ${usd(row.ask)}`}`
     : app.dir === "buy"
-      ? `Ask <b>${usd(row.ask)}</b> × ${row.askSize.toFixed(0)} · mark ${usd(row.mark)}`
-      : `Bid <b>${usd(row.bid)}</b> × ${row.bidSize.toFixed(0)} · mark ${usd(row.mark)}`;
+      ? `Ask <b>${usd(row.ask)}</b> · ${depth(row.askSize)} · mark ${usd(row.mark)}`
+      : `Bid <b>${usd(row.bid)}</b> · ${depth(row.bidSize)} · mark ${usd(row.mark)}`;
 
   const contracts = amount();
   const limit = Number($("price").value) || reference;
@@ -1139,6 +1194,13 @@ function renderTicket() {
   $("k-fee").textContent = `${usd(load * contracts)} · ${((load / Math.max(app.dir === "buy" ? row.ask : row.mark, 1e-9)) * 10_000).toFixed(0)} bps`;
 
   const settled = series && series.settlement !== "open";
+  // A sell is not the mirror of a buy: the pool only ever writes tickets *to*
+  // someone, so selling means handing back one you hold. Clicking it with an
+  // empty position would be refused by the planner, and a disabled button that
+  // says why beats a rejection after a click.
+  const holding = app.state?.positions?.rows?.some(
+    (row) => row.seriesKey === `${app.asset}|${series?.expiry ?? ""}|${app.kind}|${app.strike}` && row.settlement === "open",
+  );
   // Player vs pool: the vault is the counterparty to every ticket, so what
   // decides a click is not whether somebody happens to be quoting this cell but
   // whether the venue has a price for it at all. Resting quotes stay on the
@@ -1159,7 +1221,7 @@ function renderTicket() {
   const cta = $("cta");
   cta.disabled = !app.online || settled || !isLive() || (app.postOnly ? !resting : !priced);
   cta.className = `cta ${app.dir === "sell" ? "sell" : ""}`;
-  if (!app.online) cta.textContent = "Market service offline";
+  if (!app.online) cta.textContent = "Gateway offline";
   else if (settled) cta.textContent = `Series ${series.settlement}`;
   else if (!isLive()) cta.textContent = "Waiting for a live print";
   else if (app.postOnly && !resting) cta.textContent = `No resting ${app.dir === "buy" ? "offers" : "bids"} here`;
@@ -1208,7 +1270,7 @@ function renderRail(row, premium) {
     const trades = app.state?.trades ?? [];
     host.innerHTML = trades.length
       ? `<div class="log">${trades.slice(0, 18).map((trade) => `<div>${trade}</div>`).join("")}</div>`
-      : `<div class="empty">No prints yet${app.online ? "" : " · daemon offline"}.</div>`;
+      : `<div class="empty">No prints yet${app.online ? "" : " · gateway offline"}.</div>`;
   } else {
     const series = selectedSeries();
     const bids = series?.bids ?? [];
@@ -1400,19 +1462,19 @@ function renderStatus() {
   const series = app.state?.series;
   $("s-series").textContent = series
     ? `${series.kind.toLowerCase()} $${series.low}/${series.high} · ${series.settlement} · ${series.expiry}`
-    : app.online ? "no series selected" : "market service offline";
+    : app.online ? "no series selected" : "gateway offline";
   $("s-build").textContent = app.online
     ? `${app.state?.contract ?? "contract"} · ${app.state?.seriesCount ?? 0} spreads listed`
-    : "market service offline";
+    : "gateway offline";
   const book = $("book-state");
   if (book) {
     const pool = app.state?.pool;
     book.textContent = pool
       ? `pool equity ${fmt(pool.equity)} · reserved ${fmt(pool.reserved)} · ${pool.utilisationBps} bps used · ${flow?.prints ?? 0} tickets this session`
-      : "waiting for the market service";
+      : "waiting for the gateway";
   }
   const toast = app.toast && Date.now() - app.toast.at < 8000 ? app.toast : null;
-  $("s-toast").textContent = toast ? `· ${toast.text}` : "";
+  $("s-toast").textContent = toast ? toast.text : "";
   $("s-toast").className = toast ? (toast.bad ? "bad" : "good") : "";
 }
 
@@ -1489,7 +1551,7 @@ function renderVault() {
   const ids = ["v-cash", "v-shares", "v-exit", "v-equity", "v-free", "v-reserved", "v-venue", "v-locked", "v-consolation", "v-tickets"];
   if (!state) {
     for (const id of ids) put(id, "—");
-    put("v-lp-note", "market service offline · run scripts/venue.sh");
+    put("v-lp-note", "gateway offline · run scripts/venue.sh");
     return;
   }
   const pool = state.pool;
@@ -1572,7 +1634,7 @@ async function fund(type, value, unit) {
     });
     const result = await response.json();
     if (!result.ok) throw new Error(result.error);
-    app.toast = { text: `${type} · ${result.message}`, at: Date.now() };
+    app.toast = { text: result.message, at: Date.now() };
   } catch (error) {
     app.toast = { text: `${type} rejected · ${error.message}`, at: Date.now(), bad: true };
   }
@@ -1584,7 +1646,7 @@ function renderStats() {
   const state = app.state;
   if (!state) {
     $("st-tps").textContent = "—";
-    $("compare-table").tBodies[0].innerHTML = `<tr><td colspan="4" class="note">market service offline · run scripts/venue.sh</td></tr>`;
+    $("compare-table").tBodies[0].innerHTML = `<tr><td colspan="4" class="note">gateway offline · run scripts/venue.sh</td></tr>`;
     return;
   }
   const buckets = state.volumeBuckets ?? [];
@@ -1651,7 +1713,7 @@ function renderPositions() {
   const state = app.state;
   if (!state) {
     $("pf-open").textContent = "—";
-    $("pf-table").tBodies[0].innerHTML = `<tr><td colspan="9" class="note">market service offline · run scripts/venue.sh</td></tr>`;
+    $("pf-table").tBodies[0].innerHTML = `<tr><td colspan="9" class="note">gateway offline · run scripts/venue.sh</td></tr>`;
     return;
   }
   const { rows, totals } = state.positions;
@@ -1806,6 +1868,35 @@ function renderAll() {
   if (app.page === "stats") renderStats();
   if (app.page === "positions") renderPositions();
   if (app.page === "vault") renderVault();
+  if (app.page === "fees") renderFees();
+}
+
+/// The fee page quotes the contract's own terms and the vault's own buckets.
+/// A schedule typed into markup is a schedule the venue can silently change.
+function renderFees() {
+  const pool = app.state?.pool;
+  if (!pool) return;
+  const fill = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value;
+  };
+  const margin = (pool.marginBps / 100).toFixed(2);
+  const impact = (pool.impactBps / 100).toFixed(2);
+  // Of the premium collected, the venue's slice is margin ÷ (1 + margin).
+  const share = (pool.marginBps / (10_000 + pool.marginBps)) * 100;
+  fill("f-terms", `${pool.marginBps} bps in · ${pool.impactBps} bps out`);
+  fill("f-margin", `${margin}%`);
+  fill("f-margin-2", `${margin}%`);
+  fill("f-margin-3", `${margin}%`);
+  fill("f-impact", `${impact}%`);
+  fill("f-impact-2", `${impact}%`);
+  fill("f-venue-share", `${share.toFixed(2)}%`);
+  fill("f-locked", usd(pool.venueLocked));
+  fill("f-earned", usd(pool.venue));
+  fill("f-consolation", usd(pool.consolation));
+  fill("f-equity", usd(pool.equity));
+  fill("f-reserved", usd(pool.reserved));
+  fill("f-session", `${pool.openTickets} open tickets`);
 }
 
 /* ---------------- wiring ---------------- */
@@ -1840,10 +1931,10 @@ $("rail-positions").addEventListener("click", () => { app.bottom = "positions"; 
 $("rail-history").addEventListener("click", () => { app.rtab = "trades"; renderAll(); });
 document.querySelectorAll("[data-page]").forEach((button) =>
   button.addEventListener("click", () => setPage(button.dataset.page)));
-$("rail-docs").addEventListener("click", () => { $("price-hint").textContent = "docs · near-mvp/README.md and docs/06"; });
+$("rail-docs").addEventListener("click", () => { $("price-hint").textContent = "docs · near-mvp/README.md and docs/04"; });
 $("rail-support").addEventListener("click", () => { $("price-hint").textContent = "support · local prototype, nothing to page"; });
 $("bell").addEventListener("click", () => { app.rtab = "book"; renderAll(); });
-$("wallet").addEventListener("click", () => { $("price-hint").textContent = "no wallet by design · orders go to the local market service"; });
+$("wallet").addEventListener("click", () => { $("price-hint").textContent = "no wallet by design · the gateway signs with the sandbox account"; });
 
 const actions = document.createElement("div");
 actions.style.cssText = "padding:0 16px 14px;display:flex;gap:8px";
