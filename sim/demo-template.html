@@ -104,8 +104,10 @@
 
   .center{min-width:0;display:flex;flex-direction:column;min-height:0;background:var(--ground)}
 
-  .expiries{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px 0 16px;
-    border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+  /* A week of chips wraps rather than hiding its last one behind a scroll with
+     no scrollbar: the strip is the venue's whole menu, so it has to be visible. */
+  .expiries{flex:0 0 auto;display:flex;align-items:center;gap:8px;row-gap:6px;flex-wrap:wrap;
+    padding:8px 12px 0 16px;border-bottom:1px solid var(--line)}
   .expiries::-webkit-scrollbar{display:none}
   .expiries h1{font-size:16px;line-height:1;white-space:nowrap;font-weight:600;margin-right:4px}
   .asset{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;background:var(--panel);
@@ -392,11 +394,6 @@
       <span id="title">Select a strike</span>
       <span class="meta" id="subtitle"></span>
       <div class="grow"></div>
-    </div>
-    <div class="seg" id="routes">
-      <button data-route="auto" aria-selected="true">Auto Route</button>
-      <button data-route="book">Book</button>
-      <button data-route="rfq">RFQ</button>
     </div>
     <div class="dir" id="dirs">
       <button class="buy" data-dir="buy" aria-selected="true">Buy to Open</button>
@@ -701,7 +698,7 @@
 const MARKET_URL = "http://127.0.0.1:8790";
 
 const app = {
-  asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy", route: "auto",
+  asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy",
   postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false, pendingSelect: false,
   userSized: false,
   feedState: null, expiries: [], renderedTicks: -1, lastError: null,
@@ -907,8 +904,11 @@ function renderExpiries() {
   app.expiryIndex = Math.min(app.expiryIndex, expiries.length - 1);
   $("chips").innerHTML = expiries
     .map((expiry, index) => {
-      const dte = expiry.dte ?? Math.max(0, Math.ceil((new Date(expiry.iso).getTime() - Date.now()) / 86_400_000));
-      const badge = index === app.expiryIndex ? `<span class="dte">${dte}d</span>` : "";
+      // Inside a day the clock is what matters, so the chip counts hours; past
+      // that it counts days. A fixed "1d" on a two-hour expiry was a lie.
+      const hours = (new Date(expiry.iso).getTime() - Date.now()) / 3_600_000;
+      const dte = hours < 24 ? `${Math.max(1, Math.round(hours))}h` : `${Math.round(hours / 24)}d`;
+      const badge = index === app.expiryIndex ? `<span class="dte">${dte}</span>` : "";
       return `<button class="chip" data-expiry="${index}" aria-selected="${index === app.expiryIndex}">${expiry.label}${badge}</button>`;
     })
     .join("");
@@ -1517,8 +1517,6 @@ function renderStatus() {
 }
 
 function syncControls() {
-  document.querySelectorAll("#routes [data-route]").forEach((tab) =>
-    tab.setAttribute("aria-selected", String(tab.dataset.route === app.route)));
   document.querySelectorAll("#dirs [data-dir]").forEach((button) =>
     button.setAttribute("aria-selected", String(button.dataset.dir === app.dir)));
   document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
@@ -1956,8 +1954,6 @@ $("asset").addEventListener("click", () => {
   startStream();
   poll();
 });
-document.querySelectorAll("#routes [data-route]").forEach((tab) =>
-  tab.addEventListener("click", () => { app.route = tab.dataset.route; renderAll(); }));
 document.querySelectorAll("#dirs [data-dir]").forEach((button) =>
   button.addEventListener("click", () => { app.dir = button.dataset.dir; renderAll(); }));
 document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
