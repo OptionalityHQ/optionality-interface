@@ -289,6 +289,26 @@ const cancelOwn = `
   return { row, toast: document.getElementById("s-toast")?.textContent.trim() || null,
            rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
 
+const oraclePanel = `
+  document.querySelector('[data-page="trade"]').click();
+  await new Promise((r) => setTimeout(r, 900));
+  const tab = document.querySelector('#bottom-tabs [data-panel="oracle"]');
+  if (!tab) return { error: "the panel has no Oracle tab" };
+  tab.click();
+  await new Promise((r) => setTimeout(r, 1400));
+  const body = document.getElementById("bottom-body");
+  return {
+    rows: [...body.querySelectorAll("tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()),
+    text: body.textContent.replace(/\\s+/g, " ").trim().slice(0, 480),
+  };`;
+
+const settlePreview = `
+  document.querySelector('[data-page="trade"]').click();
+  document.querySelector('#bottom-tabs [data-panel="positions"]').click();
+  await new Promise((r) => setTimeout(r, 1200));
+  const rows = [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim());
+  return { rows, settledRow: rows.find((text) => / by /.test(text)) ?? null };`;
+
 const settleHeld = `
   document.querySelector('[data-page="positions"]').click();
   await new Promise((r) => setTimeout(r, 1400));
@@ -463,6 +483,17 @@ for (const page of ["stats", "vault", "fees"]) {
   else note(`page:${page}`, "ok", `${page}: ${info.words} chars, ${info.tables} table(s) · ${info.numbers.slice(0, 6).join(" ")}`);
 }
 
+console.log("\n7b. who settles a ticket");
+const oracle = await cdp.run(oraclePanel);
+steps.push({ step: "oracle", data: oracle });
+await cdp.shot("07-oracle");
+if (oracle.error) note("oracle", "bad", oracle.error);
+else if (oracle.rows.length < 4) note("oracle", "bad", `the committee lists only ${oracle.rows.length} seat(s): ${oracle.rows.join(" / ")}`);
+else if (!/signatures inside/.test(oracle.text)) note("oracle", "bad", `the panel does not state the quorum rule: ${oracle.text.slice(0, 160)}`);
+else if (!/Last fix/.test(oracle.text)) note("oracle", "warn", `no fix on the panel yet: ${oracle.text.slice(0, 160)}`);
+else if (!/ours/.test(oracle.text)) note("oracle", "warn", "the panel does not mark which seat is the venue's own");
+else note("oracle", "ok", `${oracle.rows.length} seats · ${oracle.text.match(/\d+ agree right now/)?.[0] ?? ""} · ${oracle.text.match(/Last fix[^]*/)?.[0].slice(0, 90) ?? ""}`);
+
 console.log("\n8. phone width");
 await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
 await cdp.run(`document.querySelector('[data-page="trade"]').click(); await new Promise((r) => setTimeout(r, 1500));`);
@@ -510,7 +541,20 @@ if (SETTLE) {
       console.log(`  … holding for ${Math.round(waitMs / 1000)}s to ${new Date(ns / 1e6).toISOString().slice(11, 19)}Z`);
       await sleep(waitMs);
       // The host fixes the series on the next tick after expiry; the row offers
-      // Settle only once the contract has a print to pay from.
+      // Settle only once the contract has a print to pay from. Before that click,
+      // the panel is the only place the chain's own provenance is visible: a
+      // settled ticket naming the seats that signed its price.
+      let preview = { settledRow: null, rows: [] };
+      for (let attempt = 0; attempt < 30 && !preview.settledRow; attempt += 1) {
+        preview = await cdp.run(settlePreview);
+        if (!preview.settledRow) await sleep(4000);
+      }
+      steps.push({ step: "settle-preview", data: preview });
+      await cdp.shot("09-fixed");
+      if (!preview.settledRow) note("provenance", "warn", `no row on the panel says who settled it: ${JSON.stringify(preview.rows).slice(0, 220)}`);
+      else if (!/kraken|okx|coingecko|venue-index/.test(preview.settledRow)) note("provenance", "warn", `the settled row names unknown seats: ${preview.settledRow}`);
+      else note("provenance", "ok", preview.settledRow);
+
       let outcome = { done: false };
       for (let attempt = 0; attempt < 30 && !outcome.done; attempt += 1) {
         outcome = await cdp.run(settleHeld);

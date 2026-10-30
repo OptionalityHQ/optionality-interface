@@ -383,6 +383,7 @@
         <button data-panel="positions">Positions</button>
         <button data-panel="orders">Orders</button>
         <button data-panel="greeks">Greeks</button>
+      <button data-panel="oracle">Oracle</button>
         <div class="tools"><span id="book-state">waiting for the gateway</span></div>
       </div>
       <div class="body" id="bottom-body"></div>
@@ -983,6 +984,17 @@ function renderBanner() {
     );
   }
   if (!narrow) parts.push(`<b>${state.ticks ?? 0}</b> index prints`);
+  // The settlement price is not the index, and saying so beside it is the point:
+  // a reviewer should be able to see that the venue's own number is only one of
+  // the signatures a payout needs.
+  const oracle = app.state?.oracle;
+  if (oracle?.lastFix) {
+    parts.push(
+      `settle <b>$${oracle.lastFix.price.toLocaleString("en-US", { maximumFractionDigits: 2 })}</b>` +
+        ` by ${oracle.lastFix.sources.join("+")}` +
+        `${oracle.disagreementBps === null ? "" : ` | our index ${oracle.disagreementBps} bps off`}`,
+    );
+  }
   parts.push(
     venueState
       ? `<b>${venueState.seriesCount}</b> spreads quoted · <b>${app.live?.flow?.prints ?? 0}</b> fills this session`
@@ -1453,10 +1465,13 @@ function renderBottom() {
   if (app.bottom === "positions") {
     const mine = state.positions.rows;
     if (!mine.length) { host.innerHTML = `<div class="empty">No open tickets for you yet.</div>`; return; }
-    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>against</th><th>contracts</th><th>cost</th><th>max payout</th></tr></thead><tbody>
+    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>against</th><th>contracts</th><th>cost</th><th>max payout</th><th>settled</th></tr></thead><tbody>
       ${mine.map((ticket) => `<tr><td>${ticket.series}</td><td>${ticket.side}</td>
         <td>${ticket.againstPool ? "the pool" : "a maker"}</td>
-        <td class="num">${fmt(ticket.contracts, 0)}</td><td class="num">${fmt(ticket.cost)}</td><td class="num">${fmt(ticket.maxPayout)}</td></tr>`).join("")}
+        <td class="num">${fmt(ticket.contracts, 0)}</td><td class="num">${fmt(ticket.cost)}</td><td class="num">${fmt(ticket.maxPayout)}</td>
+        <td>${ticket.settleSources.length
+          ? `$${fmt(ticket.fixedPrice ?? 0, 2)} by ${ticket.settleSources.join("+")}`
+          : `<span class="dim">${ticket.settlement}</span>`}</td></tr>`).join("")}
     </tbody></table>`;
     return;
   }
@@ -1472,6 +1487,25 @@ function renderBottom() {
     </tbody></table>`;
     host.querySelectorAll("[data-cancel]").forEach((button) =>
       button.addEventListener("click", () => act("cancel", { id: Number(button.dataset.cancel), side: button.dataset.side })));
+    return;
+  }
+  if (app.bottom === "oracle") {
+    const oracle = state.oracle;
+    if (!oracle) { host.innerHTML = `<div class="empty">The oracle did not answer.</div>`; return; }
+    const seats = oracle.seats.map((seat) => `<tr>
+      <td>${seat.source === "venue-index" ? `${seat.source} <span class="dim">ours</span>` : seat.source}</td>
+      <td class="num">${seat.price === null ? "—" : `$${seat.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
+      <td class="num">${seat.ageS < 1 ? "under 1s" : `${seat.ageS.toFixed(0)}s`} ago</td>
+      <td>${seat.fresh ? '<span class="pos">counts</span>' : '<span class="neg">stale</span>'}</td></tr>`).join("");
+    const fix = oracle.lastFix;
+    const money = (value) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    host.innerHTML = `<table class="grid"><thead><tr><th>source</th><th>its price</th><th>last word</th><th>vote</th></tr></thead><tbody>
+      ${seats}</tbody></table>
+      <div class="dim" style="margin-top:8px">A settlement needs <b>${oracle.quorum}</b> of these signatures inside <b>${oracle.toleranceBps} bps</b> of each other — <b>${oracle.agreeingSeats}</b> agree right now${oracle.canFix ? " and a fix can be made" : ", so nothing can settle"}.</div>
+      ${fix
+        ? `<div class="dim" style="margin-top:4px">Last fix <b>${money(fix.price)}</b> by ${fix.sources.join(" + ")} — ${(fix.dispersionBps / 100).toFixed(2)}% apart${oracle.disagreementBps === null ? "" : `, our own index ${oracle.disagreementBps} bps from it`}.</div>`
+        : `<div class="dim" style="margin-top:4px">No fix yet.</div>`}
+      <div class="dim" style="margin-top:4px">The venue's engine is one seat here and needs a second opinion to settle anything. Stopping it takes away a vote, not the market's ability to pay out.</div>`;
     return;
   }
   const row = app.strike === null ? null : rowFor(app.kind, app.strike);
