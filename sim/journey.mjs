@@ -252,6 +252,42 @@ const closeFirst = `
            toast: document.getElementById("s-toast")?.textContent.trim() || null,
            rows: [...document.querySelectorAll("#pf-table tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
 
+const postOffer = `
+  document.querySelector('[data-page="trade"]')?.click();
+  await new Promise((r) => setTimeout(r, 700));
+  document.querySelector('#dirs button[data-dir="sell"]').click();
+  const toggle = document.getElementById("post-only");
+  if (toggle.getAttribute("aria-pressed") !== "true") toggle.click();
+  // The page's own default is the offer to test: a post-only order has to rest
+  // outside the book, so the price box should already hold one that will not be
+  // refused for crossing.
+  await new Promise((r) => setTimeout(r, 500));
+  const cta = document.getElementById("cta");
+  if (!cta || cta.disabled) return { error: "the post-only button is disabled: " + (cta ? cta.textContent.trim() : "missing") };
+  const label = cta.textContent.trim();
+  cta.click();
+  await new Promise((r) => setTimeout(r, 2200));
+  document.querySelector('#bottom-tabs [data-panel="orders"]').click();
+  await new Promise((r) => setTimeout(r, 700));
+  return {
+    label,
+    toast: document.getElementById("s-toast")?.textContent.trim() || null,
+    rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => ({
+      text: tr.textContent.replace(/\\s+/g, " ").trim(),
+      id: tr.querySelector("[data-cancel]")?.dataset.cancel ?? null,
+      side: tr.querySelector("[data-cancel]")?.dataset.side ?? null,
+    })),
+  };`;
+
+const cancelOwn = `
+  const button = document.querySelector("#bottom-body [data-cancel]");
+  if (!button) return { error: "no cancel button on my own order" };
+  const row = button.closest("tr").textContent.replace(/\\s+/g, " ").trim();
+  button.click();
+  await new Promise((r) => setTimeout(r, 2200));
+  return { row, toast: document.getElementById("s-toast")?.textContent.trim() || null,
+           rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
+
 const pageText = (page) => `
   document.querySelector('[data-page="${page}"]').click();
   await new Promise((r) => setTimeout(r, 1400));
@@ -378,7 +414,26 @@ if (closed.error) note("close", "warn", closed.error);
 else if (closed.after === closed.before && !closed.toast) note("close", "bad", `clicking Close changed nothing: ${closed.rows.join(" / ")}`);
 else note("close", "ok", `"${closed.label}" → toast ${closed.toast || "none"} · realised ${closed.before} → ${closed.after}`);
 
-console.log("\n6. the other pages");
+console.log("\n6. rest an offer, then take it back");
+const rested = await cdp.run(postOffer);
+steps.push({ step: "rest", data: rested });
+await cdp.shot("06-rested");
+if (rested.error) note("rest", "bad", rested.error);
+else if (!rested.rows.some((row) => row.id)) note("rest", "bad", `the offer never reached the page: ${rested.toast || "no toast"} · rows ${JSON.stringify(rested.rows.slice(0, 2))}`);
+else {
+  note("rest", "ok", `"${rested.label}" → ${rested.toast || "no toast"} · my row: ${rested.rows.find((row) => row.id).text}`);
+  const cancelled = await cdp.run(cancelOwn);
+  steps.push({ step: "cancel", data: cancelled });
+  await cdp.shot("07-cancelled");
+  if (cancelled.error) note("cancel", "bad", cancelled.error);
+  else if (cancelled.rows.some((row) => row.includes(String(rested.rows.find((r) => r.id).id)))) {
+    note("cancel", "bad", `cancel did not take the row off the book: ${cancelled.rows.join(" / ")}`);
+  } else {
+    note("cancel", "ok", `"Cancel" on ${cancelled.row} → ${cancelled.toast || "no toast"} · book now ${cancelled.rows.length} row(s)`);
+  }
+}
+
+console.log("\n7. the other pages");
 for (const page of ["stats", "fees"]) {
   const info = await cdp.run(pageText(page));
   steps.push({ step: `page:${page}`, data: info });
@@ -388,7 +443,7 @@ for (const page of ["stats", "fees"]) {
   else note(`page:${page}`, "ok", `${page}: ${info.words} chars, ${info.tables} table(s) · ${info.numbers.slice(0, 6).join(" ")}`);
 }
 
-console.log("\n7. phone width");
+console.log("\n8. phone width");
 await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
 await cdp.run(`document.querySelector('[data-page="trade"]').click(); await new Promise((r) => setTimeout(r, 1500));`);
 const phone = await cdp.run(overflowScan);

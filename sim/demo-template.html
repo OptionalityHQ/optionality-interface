@@ -831,11 +831,12 @@ async function poll() {
   renderAll();
 }
 
-async function act(type) {
+async function act(type, extra = {}) {
   if (!app.online || app.strike === null) return;
   const body = {
     type, asset: app.asset, kind: app.kind, strike: app.strike, expiry: expiryStamp(),
     quantity: amount(), limit: Number($("price").value) || lastReference(), postOnly: app.postOnly,
+    ...extra,
   };
   try {
     const response = await fetch(`${MARKET_URL}/action`, {
@@ -1164,7 +1165,17 @@ function renderTicket() {
   $("title").textContent = `${app.asset} ${fmt(low, 0)}/${fmt(high, 0)} ${app.kind} Spread`;
   $("subtitle").textContent = `${expiry?.label ?? "—"} · ${$("chain-head").querySelector(".mid")?.textContent ?? ""}`;
 
-  const aggressive = app.postOnly ? (app.dir === "buy" ? row.bid : row.ask) : (app.dir === "buy" ? row.ask : row.bid);
+  // A resting order has to sit outside the book, and the book can be crossed —
+  // a person's bid above the vault's ask is a real arbitrage, not a typo — so the
+  // post-only default is computed off the far side rather than copied from it.
+  // The contract still decides: this only stops the button prefilling a refusal.
+  const aggressive = app.postOnly
+    ? app.dir === "buy"
+      ? Math.max(0.0001, Math.min(row.bid || row.ask, (row.ask || row.bid) * 0.99 - 0.01))
+      : Math.max(row.ask || row.bid, (row.bid || row.ask) * 1.01 + 0.01)
+    : app.dir === "buy"
+      ? row.ask
+      : row.bid;
   const reference = aggressive;
   // A wing priced in fractions of a cent cannot go in the box as "$0.00": the
   // limit the visitor sees is the limit the ticket is sent with.
@@ -1212,7 +1223,6 @@ function renderTicket() {
   const quotes = (app.dir === "buy" ? series?.offers : series?.bids) ?? [];
   const mine = (quote) => quote.who !== youAccount();
   const priced = app.dir === "buy" ? row.ask > 0 : row.bid > 0;
-  const resting = app.dir === "buy" ? row.askSize > 0 : row.bidSize > 0;
   // Player vs pool: the vault stands behind every cell, so a click at the price
   // shown crosses — there is no book that has to be there for the order to fill.
   // Post-only is the one mode that does want a match, and it says so.
@@ -1234,13 +1244,14 @@ function renderTicket() {
   // model's mark is a chart line by then, so the button says who is missing.
   const fillable = app.dir === "buy" ? row.takeAsk !== null && row.takeAsk !== undefined : priced;
   const cta = $("cta");
-  cta.disabled = !app.online || settled || !isLive() || vaultFull
-    || (app.postOnly ? !resting : !fillable);
+  // Posting an order never needs a counterparty: that is the whole point of
+  // resting one. Only a taker needs somebody on the other side, and only a taker
+  // is what `fillable` describes.
+  cta.disabled = !app.online || settled || !isLive() || vaultFull || (!app.postOnly && !fillable);
   cta.className = `cta ${app.dir === "sell" ? "sell" : ""}`;
   if (!app.online) cta.textContent = "Gateway offline";
   else if (settled) cta.textContent = `Series ${series.settlement}`;
   else if (!isLive()) cta.textContent = "Waiting for a live print";
-  else if (app.postOnly && !resting) cta.textContent = `No resting ${app.dir === "buy" ? "offers" : "bids"} here`;
   else if (!fillable) {
     cta.textContent = app.dir === "buy" && row.poolAsk === null
       ? `No price published at ${app.asset} ${app.kind[0]}${app.strike} · the vault is not selling it`
@@ -1451,10 +1462,16 @@ function renderBottom() {
   }
   if (app.bottom === "orders") {
     if (!state.orders.length) { host.innerHTML = `<div class="empty">Nothing resting: the vault is the counterparty, so every ladder price is the pool's own.</div>`; return; }
-    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>who</th><th>contracts</th><th>premium</th></tr></thead><tbody>
+    // Your own resting rows can be taken back: the contract holds the premium or
+    // the collateral until the order leaves the book, so a trader who changed
+    // their mind needs the button, not a second quote on top of the first.
+    host.innerHTML = `<table class="grid"><thead><tr><th>series</th><th>side</th><th>who</th><th>contracts</th><th>premium</th><th></th></tr></thead><tbody>
       ${state.orders.map((order) => `<tr><td>${order.series}</td><td>${order.side}</td><td>${order.who}</td>
-        <td class="num">${fmt(order.size, 2)}</td><td class="num ${order.side === "buy" ? "neg" : "pos"}">${fmt(order.price)}</td></tr>`).join("")}
+        <td class="num">${fmt(order.size, 2)}</td><td class="num ${order.side === "buy" ? "neg" : "pos"}">${fmt(order.price)}</td>
+        <td>${order.who === youAccount() ? `<button class="ghost" data-cancel="${order.id}" data-side="${order.side}">Cancel</button>` : ""}</td></tr>`).join("")}
     </tbody></table>`;
+    host.querySelectorAll("[data-cancel]").forEach((button) =>
+      button.addEventListener("click", () => act("cancel", { id: Number(button.dataset.cancel), side: button.dataset.side })));
     return;
   }
   const row = app.strike === null ? null : rowFor(app.kind, app.strike);
@@ -1774,7 +1791,12 @@ function renderPositions() {
               // quoting, so the button names it with "@". Into a bidder there is
               // a real minimum, and "≥" is what the contract enforces.
               `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ${row.againstPool ? "@" : "≥"} ${usd(row.exitUnit)}</button>`
-            : `<span class="state">${row.closeBlock}</span>`}</td>
+            : row.settlement === "fixed" || row.settlement === "void"
+              ? // The series has a print: the ticket's value is decided, and the
+                // only thing left is to ask for it. Addressed by ticket id, so it
+                // still works once the ladder has rolled past this series.
+                `<button class="ghost" data-settle="${row.ticketId}">Settle · up to ${usd(row.maxPayout)}</button>`
+              : `<span class="state">${row.closeBlock}</span>`}</td>
         </tr>`,
         )
         .join("")
@@ -1798,6 +1820,8 @@ function renderPositions() {
         .join("")
     : `<tr><td colspan="8" class="note">Nothing closed or settled yet.</td></tr>`;
 
+  $("pf-table").querySelectorAll("[data-settle]").forEach((button) =>
+    button.addEventListener("click", () => act("settle", { ticket: Number(button.dataset.settle) })));
   $("pf-table").querySelectorAll("[data-close]").forEach((button) =>
     button.addEventListener("click", () => {
       const [seriesKey, ticketId] = button.dataset.close.split("#");
