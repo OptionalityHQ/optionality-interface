@@ -337,7 +337,10 @@ if (!cells.length) {
       continue;
     }
     const toast = bought.toast || "";
-    if (/filled/.test(toast)) {
+    // A fill is the venue's own sentence with a transaction count on the end:
+    // "bought 1x from the pool at 1.1576 all-in · 1 tx" or "took 2x off the
+    // book · 1 tx". A refusal also has a tx count of 0 and never matches.
+    if (/(bought|took) .*· \d+ tx/.test(toast)) {
       note("buy", "ok", `"${bought.label}" → ${toast}`);
       opened = picked;
       break;

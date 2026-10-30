@@ -449,7 +449,7 @@
     <div class="page-body">
       <section class="panel">
         <div class="kpi-row">
-          <div class="kpi"><span class="label">Unrealised</span><span class="value" id="pf-open">&mdash;</span><span class="sub" id="pf-open-sub">open tickets, marked now</span></div>
+          <div class="kpi"><span class="label">Unrealised</span><span class="value" id="pf-open">&mdash;</span><span class="sub" id="pf-open-sub">open tickets, at what a close pays now</span></div>
           <div class="kpi"><span class="label">Realised</span><span class="value" id="pf-realised">&mdash;</span><span class="sub">from closed and settled tickets</span></div>
           <div class="kpi"><span class="label">Cash</span><span class="value" id="pf-cash">&mdash;</span><span class="sub">available to trade</span></div>
           <div class="kpi"><span class="label">Collateral at risk</span><span class="value" id="pf-risk">&mdash;</span><span class="sub">locked behind short tickets</span></div>
@@ -458,9 +458,9 @@
       </section>
 
       <section class="panel">
-        <h2>Open tickets <span>close sells the whole ticket into the best whole-size bid, at or above the floor shown</span></h2>
+        <h2>Open tickets <span>the price shown is what a close pays: the vault's exit for its own ticket, the best whole-size bid for a person's</span></h2>
         <table class="data" id="pf-table">
-          <thead><tr><th>Instrument</th><th>Side</th><th>Contracts</th><th>Cost</th><th>Mark</th><th>Exit bid</th><th>Unrealised</th><th>Expiry</th><th></th></tr></thead>
+          <thead><tr><th>Instrument</th><th>Side</th><th>Contracts</th><th>Cost</th><th>Mark (model)</th><th>Close pays</th><th>Unrealised</th><th>Expiry</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </section>
@@ -1169,16 +1169,27 @@ function renderTicket() {
   // A wing priced in fractions of a cent cannot go in the box as "$0.00": the
   // limit the visitor sees is the limit the ticket is sent with.
   const digits = reference > 0 && reference < 0.1 ? 4 : 2;
-  if (document.activeElement !== $("price")) $("price").value = reference.toFixed(digits);
+  // And it is rounded *towards the trade*: this box becomes the budget the
+  // contract checks, so a $3.77 shown for a 3.7740 ask would be refused as
+  // "the ask moved" by the click that looked like accepting it. A buy rounds up,
+  // a sell rounds down, and neither promises a price the venue will not honour.
+  const step = app.dir === "buy" ? Math.ceil : Math.floor;
+  const agreed = step(reference * 10 ** digits) / 10 ** digits;
+  if (document.activeElement !== $("price")) $("price").value = agreed.toFixed(digits);
   // A resting size is only information when something is resting. With an empty
   // book the other side is the vault, and it does not have a size to show.
   const depth = (size) =>
     size > 0 ? `× ${size.toFixed(0)} resting` : "the vault writes it, any size it can cover";
+  // The vault trades at the mid it published, and on a running index that
+  // publication is a moment old. Saying how old beats letting the fill be the
+  // place the trader learns it.
+  const age = row.poolQuoteAgeS;
+  const aged = age === null || age === undefined ? "" : ` · venue quote ${age < 1 ? "under 1" : age.toFixed(0)} s old`;
   $("price-hint").innerHTML = app.postOnly
     ? `${app.dir === "buy" ? "Resting bid" : "Resting offer"} at <b>${usd(reference)}</b> · best ${app.dir === "buy" ? `bid ${usd(row.bid)}` : `ask ${usd(row.ask)}`}`
     : app.dir === "buy"
-      ? `Ask <b>${usd(row.ask)}</b> · ${depth(row.askSize)} · mark ${usd(row.mark)}`
-      : `Bid <b>${usd(row.bid)}</b> · ${depth(row.bidSize)} · mark ${usd(row.mark)}`;
+      ? `Ask <b>${usd(agreed)}</b> · ${depth(row.askSize)} · mark ${usd(row.mark)}${aged}`
+      : `Bid <b>${usd(agreed)}</b> · ${depth(row.bidSize)} · mark ${usd(row.mark)}${aged}`;
 
   const contracts = amount();
   const limit = Number($("price").value) || reference;
@@ -1194,13 +1205,6 @@ function renderTicket() {
   $("k-fee").textContent = `${usd(load * contracts)} · ${((load / Math.max(app.dir === "buy" ? row.ask : row.mark, 1e-9)) * 10_000).toFixed(0)} bps`;
 
   const settled = series && series.settlement !== "open";
-  // A sell is not the mirror of a buy: the pool only ever writes tickets *to*
-  // someone, so selling means handing back one you hold. Clicking it with an
-  // empty position would be refused by the planner, and a disabled button that
-  // says why beats a rejection after a click.
-  const holding = app.state?.positions?.rows?.some(
-    (row) => row.seriesKey === `${app.asset}|${series?.expiry ?? ""}|${app.kind}|${app.strike}` && row.settlement === "open",
-  );
   // Player vs pool: the vault is the counterparty to every ticket, so what
   // decides a click is not whether somebody happens to be quoting this cell but
   // whether the venue has a price for it at all. Resting quotes stay on the
@@ -1218,14 +1222,31 @@ function renderTicket() {
       (app.dir === "buy"
         ? quotes.some((q) => mine(q) && q.quantity <= contracts && q.premium <= limit * contracts * 1.02)
         : quotes.some((q) => mine(q) && q.quantity === contracts && q.premium >= limit * contracts * 0.98));
+  // Whether the vault can stand behind one more ticket is the contract's
+  // decision at execution. But *zero* free equity is a fact already in the
+  // payload, and a pool take at zero is a refusal waiting to happen — so the
+  // button says it before the click does.
+  const vaultFull = app.dir === "buy" && !app.postOnly && row.takeAskFrom === "pool"
+    && (app.state?.pool?.freeEquity ?? 0) <= 0;
+  // A buy needs a counterparty that will actually trade: a resting offer or the
+  // vault at its published price. `takeAsk` is the cheaper of those two and null
+  // when there is neither — and a null is not a cheap price, it is no market. The
+  // model's mark is a chart line by then, so the button says who is missing.
+  const fillable = app.dir === "buy" ? row.takeAsk !== null && row.takeAsk !== undefined : priced;
   const cta = $("cta");
-  cta.disabled = !app.online || settled || !isLive() || (app.postOnly ? !resting : !priced);
+  cta.disabled = !app.online || settled || !isLive() || vaultFull
+    || (app.postOnly ? !resting : !fillable);
   cta.className = `cta ${app.dir === "sell" ? "sell" : ""}`;
   if (!app.online) cta.textContent = "Gateway offline";
   else if (settled) cta.textContent = `Series ${series.settlement}`;
   else if (!isLive()) cta.textContent = "Waiting for a live print";
   else if (app.postOnly && !resting) cta.textContent = `No resting ${app.dir === "buy" ? "offers" : "bids"} here`;
-  else if (!priced) cta.textContent = `Nothing quoted at ${app.asset} ${app.kind[0]}${app.strike}`;
+  else if (!fillable) {
+    cta.textContent = app.dir === "buy" && row.poolAsk === null
+      ? `No price published at ${app.asset} ${app.kind[0]}${app.strike} · the vault is not selling it`
+      : `Nothing quoted at ${app.asset} ${app.kind[0]}${app.strike}`;
+  }
+  else if (vaultFull) cta.textContent = "The vault is empty · enter it, or wait for the open tickets to run off";
   else if (app.dir === "buy") {
     cta.textContent = app.postOnly || !matchable
       ? `Rest bid · ${contracts} @ ${usd(limit)}`
@@ -1748,7 +1769,11 @@ function renderPositions() {
           <td class="${(row.open ?? 0) > 0 ? "pos" : (row.open ?? 0) < 0 ? "neg" : ""}">${row.open === null ? "—" : signedMoney(row.open)}</td>
           <td>${row.expiry}</td>
           <td>${row.closable
-            ? `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ≥ ${usd(row.exitUnit)}</button>`
+            ? // Two different sells wearing one word. Into the vault there is no
+              // floor to ask for — `pool_close` pays the price the venue is
+              // quoting, so the button names it with "@". Into a bidder there is
+              // a real minimum, and "≥" is what the contract enforces.
+              `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ${row.againstPool ? "@" : "≥"} ${usd(row.exitUnit)}</button>`
             : `<span class="state">${row.closeBlock}</span>`}</td>
         </tr>`,
         )
