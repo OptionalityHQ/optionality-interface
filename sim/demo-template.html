@@ -217,7 +217,7 @@
   .rbody .kpi div{font-size:12px;color:var(--dim)}
   .rbody .kpi b{display:block;font-family:var(--mono);font-size:14px;font-weight:500;margin-top:2px}
   canvas.payoff{width:100%;height:158px;display:block}
-  canvas.sess-chart{width:100%;height:46px;display:block}
+  canvas.sess-chart{width:100%;height:40px;display:block}
   table.mini{width:100%;border-collapse:collapse;font-size:13px}
   table.mini td{padding:4px 0;border-bottom:1px solid var(--rule)}
   table.mini td:last-child{text-align:right;font-family:var(--mono)}
@@ -384,6 +384,7 @@
         <button data-panel="positions">Positions</button>
         <button data-panel="orders">Orders</button>
         <button data-panel="greeks">Greeks</button>
+      <button data-panel="smile">Smile</button>
       <button data-panel="oracle">Oracle</button>
       <button data-panel="session">Session</button>
         <div class="tools"><span id="book-state">waiting for the gateway</span></div>
@@ -704,7 +705,7 @@ const app = {
   asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy",
   postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false, pendingSelect: false,
   userSized: false,
-  feedState: null, expiries: [], renderedTicks: -1, lastError: null,
+  feedState: null, expiries: [], renderedTicks: -1, lastError: null, smile: null, smileBusy: false,
   /* The gateway pushes index prints and fills on /stream; /state stays the
      slow, heavy read of the chain. `seen` holds the last rendered value of
      every figure so a change can be marked rather than silently repainted. */
@@ -1504,6 +1505,142 @@ function drawLine(canvas, values, colour, withZero) {
   ctx.fillText(bottom, width - pad - ctx.measureText(bottom).width, y(low) - 2);
 }
 
+
+/* ---------------- the vol smile ---------------- */
+
+const SMILE_COLOURS = ["#6ee7a8", "#e8a45e", "#8ab4f8"];
+const SMILE_TTL_MS = 4_000;
+
+/// The smile is three engine reads, so it is fetched on its own clock rather than
+/// on every state poll. `refreshSmile` re-renders only if the panel is still open.
+function refreshSmile() {
+  if (app.smileBusy) return;
+  app.smileBusy = true;
+  fetch(`/smile?asset=${app.asset}`, { cache: "no-store" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (data) app.smile = { at: Date.now(), data };
+    })
+    .catch(() => {})
+    .finally(() => {
+      app.smileBusy = false;
+      if (app.bottom === "smile") renderBottom();
+    });
+}
+
+
+/// A count of seats is a step, not a slope: three agreeing then two is not "two and
+/// a half" in between. The quorum is drawn as the line it is — the height a series
+/// has to stay above to settle.
+function drawSteps(canvas, values, quorum) {
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 320;
+  const height = canvas.clientHeight || 36;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const present = values.filter((value) => value !== null && value !== undefined);
+  if (!present.length) return;
+  const top = Math.max(quorum + 1, ...present);
+  const pad = 3;
+  const x = (index) => pad + (index / Math.max(values.length - 1, 1)) * (width - 2 * pad);
+  const y = (value) => height - pad - (value / top) * (height - 2 * pad);
+
+  ctx.strokeStyle = "#3a4656";
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(pad, y(quorum));
+  ctx.lineTo(width - pad, y(quorum));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = "#8ab4f8";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  let last = null;
+  values.forEach((value, index) => {
+    if (value === null || value === undefined) return;
+    if (last === null) { ctx.moveTo(x(index), y(value)); }
+    else { ctx.lineTo(x(index), y(last)); ctx.lineTo(x(index), y(value)); }
+    last = value;
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = "#68788a";
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.fillText(`${present[present.length - 1]}`, width - pad - 6, y(present[present.length - 1]) - 2);
+}
+
+function drawSmile(canvas, view) {
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 640;
+  const height = canvas.clientHeight || 150;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const points = view.curves.flatMap((curve) => curve.points);
+  if (points.length < 2) return;
+  const strikes = points.map((point) => point.strike);
+  const ivs = points.map((point) => point.vol);
+  const padL = 34;
+  const padR = 8;
+  const padT = 8;
+  const padB = 14;
+  const lo = Math.min(...strikes);
+  const hi = Math.max(...strikes);
+  const pad = Math.max((Math.max(...ivs) - Math.min(...ivs)) * 0.15, 0.005);
+  const ivLo = Math.min(...ivs) - pad;
+  const ivHi = Math.max(...ivs) + pad;
+  const x = (strike) => padL + ((strike - lo) / Math.max(hi - lo, 1)) * (width - padL - padR);
+  const y = (iv) => height - padB - ((iv - ivLo) / Math.max(ivHi - ivLo, 1e-9)) * (height - padT - padB);
+
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.fillStyle = "#68788a";
+  ctx.strokeStyle = "#2a3340";
+  ctx.lineWidth = 1;
+  for (const iv of [ivLo, (ivLo + ivHi) / 2, ivHi]) {
+    ctx.beginPath();
+    ctx.moveTo(padL, y(iv));
+    ctx.lineTo(width - padR, y(iv));
+    ctx.stroke();
+    const label = `${(iv * 100).toFixed(0)}%`;
+    ctx.fillText(label, padL - ctx.measureText(label).width - 4, y(iv) + 3);
+  }
+
+  // The index: the strike axis is meaningless without it.
+  if (view.spot) {
+    ctx.strokeStyle = "#3a4656";
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x(view.spot), padT);
+    ctx.lineTo(x(view.spot), height - padB);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.lineWidth = 1.4;
+  view.curves.forEach((curve, index) => {
+    if (curve.points.length < 2) return;
+    ctx.strokeStyle = SMILE_COLOURS[index % SMILE_COLOURS.length];
+    ctx.beginPath();
+    curve.points.forEach((point, at) =>
+      at === 0 ? ctx.moveTo(x(point.strike), y(point.vol)) : ctx.lineTo(x(point.strike), y(point.vol)));
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = "#68788a";
+  ctx.fillText(`$${lo.toFixed(0)}`, padL, height - 3);
+  const hiLabel = `$${hi.toFixed(0)}`;
+  ctx.fillText(hiLabel, width - padR - ctx.measureText(hiLabel).width, height - 3);
+}
+
 function renderBottom() {
   const host = $("bottom-body");
   document.querySelectorAll("[data-panel]").forEach((tab) =>
@@ -1565,11 +1702,33 @@ function renderBottom() {
     host.innerHTML = `
       <div class="dim" style="margin-bottom:6px" id="sess-note">${points.length} samples over ${Math.round(history.spanS)} s, one per ${history.sampledEveryS} s, recorded by this session's own reads — gone when the gateway restarts, and not exchange history.</div>
       <div><span class="dim">index</span><canvas class="sess-chart" id="sess-spot"></canvas></div>
-      <div style="margin-top:4px"><span class="dim">open P&amp;L, at what a close pays</span><canvas class="sess-chart" id="sess-open"></canvas></div>`;
+      <div style="margin-top:4px"><span class="dim">open P&amp;L, at what a close pays</span><canvas class="sess-chart" id="sess-open"></canvas></div>
+      <div style="margin-top:4px"><span class="dim">seats agreeing on the settlement price · quorum ${state.oracle?.quorum ?? 2} of ${state.oracle?.seats?.length ?? 4}</span><canvas class="sess-chart" id="sess-agree" style="height:30px"></canvas></div>`;
     requestAnimationFrame(() => {
       drawLine($("sess-spot"), points.map((point) => point.spot), "#6ee7a8", false);
       drawLine($("sess-open"), points.map((point) => point.open), "#e8a45e", true);
+      drawSteps($("sess-agree"), points.map((point) => point.agreeing), state.oracle?.quorum ?? 2);
     });
+    return;
+  }
+  if (app.bottom === "smile") {
+    // Vol against strike, one curve per tenor — the engine's own solved vols for
+    // the prices it marks. Cached for a few seconds: each refresh is three ladder
+    // reads, and a smile does not move faster than that.
+    const view = app.smile?.data;
+    if (!view) {
+      host.innerHTML = `<div class="empty">Reading the smile…</div>`;
+      refreshSmile();
+      return;
+    }
+    host.innerHTML = `
+      <div class="dim" style="margin-bottom:6px">implied vol vs strike · ${view.asset}${view.spot ? ` · index ${view.spot.toFixed(2)}` : ""} · the engine's smile at ${(view.atmVol * 100).toFixed(0)}% at the money · one σ_atm for every tenor</div>
+      <canvas class="sess-chart" id="smile-chart" style="height:104px"></canvas>
+      <div class="dim" id="smile-legend" style="margin-top:6px">${view.curves
+        .map((curve, index) => `<span style="color:${SMILE_COLOURS[index % SMILE_COLOURS.length]}">■</span> ${curve.label} <span class="dim">(${(curve.years * 365 * 24).toFixed(0)}h)</span>`)
+        .join(" · ")}</div>`;
+    requestAnimationFrame(() => drawSmile($("smile-chart"), view));
+    if (Date.now() - (app.smile?.at ?? 0) > SMILE_TTL_MS) refreshSmile();
     return;
   }
   if (app.bottom === "oracle") {

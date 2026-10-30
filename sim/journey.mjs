@@ -306,6 +306,24 @@ const sessionPanel = `
     empty: body.querySelector(".empty")?.textContent.trim() ?? null,
   };`;
 
+const smilePanel = `
+  document.querySelector('#bottom-tabs [data-panel="smile"]')?.click();
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise((r) => setTimeout(r, 400));
+    if (document.getElementById("smile-chart")) break;
+  }
+  const canvas = document.getElementById("smile-chart");
+  const legend = document.getElementById("smile-legend")?.textContent.trim() ?? "";
+  let drawn = false;
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] !== 0) { drawn = true; break; }
+    }
+  }
+  return { canvas: Boolean(canvas), drawn, legend, caption: document.getElementById("bottom-body")?.textContent.replace(/\\s+/g, " ").trim().slice(0, 220) ?? null };`;
+
 const oraclePanel = `
   document.querySelector('[data-page="trade"]').click();
   await new Promise((r) => setTimeout(r, 900));
@@ -521,9 +539,18 @@ steps.push({ step: "session", data: session });
 await cdp.shot("07-session");
 if (session.error) note("session", "bad", session.error);
 else if (session.empty) note("session", "warn", `the chart is still collecting: ${session.empty}`);
-else if (session.charts < 2) note("session", "bad", `expected an index and a PnL chart, found ${session.charts}`);
+else if (session.charts < 3) note("session", "bad", `expected index, PnL and committee charts, found ${session.charts}`);
 else if (!/this session/.test(session.note ?? "")) note("session", "warn", `the chart does not say what it is: ${session.note}`);
 else note("session", "ok", session.note);
+
+console.log("\n7d. the vol smile");
+const smile = await cdp.run(smilePanel);
+steps.push({ step: "smile", data: smile });
+await cdp.shot("07-smile");
+if (!smile.canvas) note("smile", "bad", `no smile canvas: ${smile.caption}`);
+else if (!smile.drawn) note("smile", "bad", "the smile canvas is blank");
+else if (!/vol/.test(smile.caption ?? "")) note("smile", "warn", `caption does not say what it is: ${smile.caption}`);
+else note("smile", "ok", `${smile.legend || "no legend"} · ${smile.caption}`);
 
 console.log("\n8. phone width");
 await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
