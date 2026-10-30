@@ -293,6 +293,19 @@ const cancelOwn = `
            mine: [...document.querySelectorAll("#bottom-body [data-cancel]")].map((b) => b.dataset.cancel),
            rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
 
+const sessionPanel = `
+  document.querySelector('[data-page="trade"]').click();
+  const tab = document.querySelector('#bottom-tabs [data-panel="session"]');
+  if (!tab) return { error: "the panel has no Session tab" };
+  tab.click();
+  await new Promise((r) => setTimeout(r, 1200));
+  const body = document.getElementById("bottom-body");
+  return {
+    note: document.getElementById("sess-note")?.textContent.trim() ?? null,
+    charts: body.querySelectorAll("canvas.sess-chart").length,
+    empty: body.querySelector(".empty")?.textContent.trim() ?? null,
+  };`;
+
 const oraclePanel = `
   document.querySelector('[data-page="trade"]').click();
   await new Promise((r) => setTimeout(r, 900));
@@ -446,7 +459,11 @@ else {
   note("positions", "ok", `row: ${positions.rows[0]}`);
   const zeros = positions.rows[0].split(" | ").filter((c) => /^\$0(\.0+)?$/.test(c));
   if (zeros.length) note("positions", "bad", `real money printed as $0 (sub-cent rounding): ${zeros.join(", ")}`);
-  if (!positions.buttons.length) note("positions", "bad", "the row offers no one-click close");
+  // A row the venue will not buy back says so in the row itself; that is the
+  // honest state, not a missing button.
+  const explained = /no price to buy it back at|no bidder has priced/.test(positions.rows[0]);
+  if (!positions.buttons.length && !explained) note("positions", "bad", "the row offers no one-click close");
+  else if (!positions.buttons.length) note("positions", "warn", "no close button, and the row says why");
   else note("positions", "ok", `close button reads "${positions.buttons[0].label}" (limit ${positions.buttons[0].limit})`);
 }
 
@@ -497,6 +514,16 @@ else if (!/signatures inside/.test(oracle.text)) note("oracle", "bad", `the pane
 else if (!/Last fix/.test(oracle.text)) note("oracle", "warn", `no fix on the panel yet: ${oracle.text.slice(0, 160)}`);
 else if (!/ours/.test(oracle.text)) note("oracle", "warn", "the panel does not mark which seat is the venue's own");
 else note("oracle", "ok", `${oracle.rows.length} seats · ${oracle.text.match(/\d+ agree right now/)?.[0] ?? ""} · ${oracle.text.match(/Last fix[^]*/)?.[0].slice(0, 90) ?? ""}`);
+
+console.log("\n7c. this session, so far");
+const session = await cdp.run(sessionPanel);
+steps.push({ step: "session", data: session });
+await cdp.shot("07-session");
+if (session.error) note("session", "bad", session.error);
+else if (session.empty) note("session", "warn", `the chart is still collecting: ${session.empty}`);
+else if (session.charts < 2) note("session", "bad", `expected an index and a PnL chart, found ${session.charts}`);
+else if (!/this session/.test(session.note ?? "")) note("session", "warn", `the chart does not say what it is: ${session.note}`);
+else note("session", "ok", session.note);
 
 console.log("\n8. phone width");
 await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });

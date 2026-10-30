@@ -151,7 +151,7 @@
     font-family:var(--mono)}
 
   .bottom{flex:0 0 216px;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-  .bottom .tabs{display:flex;gap:4px;padding:4px 12px 0;border-bottom:1px solid var(--line)}
+  .bottom .tabs{display:flex;flex-wrap:wrap;row-gap:2px;gap:4px;padding:4px 12px 0;border-bottom:1px solid var(--line)}
   .bottom .tabs button{position:relative;padding:7px 12px;color:var(--dim);font-size:13px}
   .bottom .tabs button:hover{color:var(--ink)}
   .bottom .tabs button[aria-selected="true"]{color:var(--ink)}
@@ -217,6 +217,7 @@
   .rbody .kpi div{font-size:12px;color:var(--dim)}
   .rbody .kpi b{display:block;font-family:var(--mono);font-size:14px;font-weight:500;margin-top:2px}
   canvas.payoff{width:100%;height:158px;display:block}
+  canvas.sess-chart{width:100%;height:46px;display:block}
   table.mini{width:100%;border-collapse:collapse;font-size:13px}
   table.mini td{padding:4px 0;border-bottom:1px solid var(--rule)}
   table.mini td:last-child{text-align:right;font-family:var(--mono)}
@@ -384,6 +385,7 @@
         <button data-panel="orders">Orders</button>
         <button data-panel="greeks">Greeks</button>
       <button data-panel="oracle">Oracle</button>
+      <button data-panel="session">Session</button>
         <div class="tools"><span id="book-state">waiting for the gateway</span></div>
       </div>
       <div class="body" id="bottom-body"></div>
@@ -710,7 +712,16 @@ const app = {
 };
 
 const $ = (id) => document.getElementById(id);
-const fmt = (v, d = 2) => Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+// Money under a cent is still money. A ticket that cost 0.0004 and one that cost
+// nothing are different facts, and "$0.00" for the first is a lie the trader cannot
+// see through.
+const fmt = (v, d = 2) => {
+  const value = Number(v);
+  if (value !== 0 && Math.abs(value) < 0.01) {
+    return value.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+  }
+  return value.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+};
 /// Derive prints strikes and index levels with one decimal and drops a
 /// trailing .0. That rule is for levels, not for money — see `quote`.
 const px = (v) => (v === null || v === undefined || Number.isNaN(v) ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 }));
@@ -1441,6 +1452,58 @@ function drawPayoff(low, high, cost) {
   ctx.fillText(hiLabel, width - pad - ctx.measureText(hiLabel).width, height - 3);
 }
 
+
+/// One line, scaled to what it actually holds. Values that are absent are gaps:
+/// an unmarked position is not a zero, and drawing it as one would claim a flat
+/// PnL the venue never had.
+function drawLine(canvas, values, colour, withZero) {
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 320;
+  const height = canvas.clientHeight || 58;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const present = values.filter((value) => value !== null && value !== undefined);
+  if (!present.length) return;
+  let low = Math.min(...present);
+  let high = Math.max(...present);
+  if (withZero) { low = Math.min(low, 0); high = Math.max(high, 0); }
+  if (high === low) { high += Math.abs(high) * 0.001 + 1; low -= Math.abs(low) * 0.001 + 1; }
+  const pad = 4;
+  const x = (index) => pad + (index / Math.max(values.length - 1, 1)) * (width - 2 * pad);
+  const y = (value) => height - pad - ((value - low) / (high - low)) * (height - 2 * pad);
+
+  if (withZero) {
+    ctx.strokeStyle = "#2a3340";
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(pad, y(0));
+    ctx.lineTo(width - pad, y(0));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  let drawing = false;
+  values.forEach((value, index) => {
+    if (value === null || value === undefined) { drawing = false; return; }
+    if (!drawing) { ctx.moveTo(x(index), y(value)); drawing = true; } else { ctx.lineTo(x(index), y(value)); }
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = "#68788a";
+  ctx.font = "9px ui-monospace, monospace";
+  const top = high.toFixed(withZero ? 4 : 2);
+  const bottom = low.toFixed(withZero ? 4 : 2);
+  ctx.fillText(top, width - pad - ctx.measureText(top).width, y(high) + 9);
+  ctx.fillText(bottom, width - pad - ctx.measureText(bottom).width, y(low) - 2);
+}
+
 function renderBottom() {
   const host = $("bottom-body");
   document.querySelectorAll("[data-panel]").forEach((tab) =>
@@ -1487,6 +1550,26 @@ function renderBottom() {
     </tbody></table>`;
     host.querySelectorAll("[data-cancel]").forEach((button) =>
       button.addEventListener("click", () => act("cancel", { id: Number(button.dataset.cancel), side: button.dataset.side })));
+    return;
+  }
+  if (app.bottom === "session") {
+    // This page's own record, and it says so. The gateway samples the index and
+    // the marked positions on the same read, so the two lines are of one moment;
+    // when the gateway restarts, both go.
+    const history = state.history;
+    const points = history?.points ?? [];
+    if (points.length < 2) {
+      host.innerHTML = `<div class="empty">Collecting: the gateway records one sample a second and the chart needs two. It is this session's own record, not exchange history.</div>`;
+      return;
+    }
+    host.innerHTML = `
+      <div class="dim" style="margin-bottom:6px" id="sess-note">${points.length} samples over ${Math.round(history.spanS)} s, one per ${history.sampledEveryS} s, recorded by this session's own reads — gone when the gateway restarts, and not exchange history.</div>
+      <div><span class="dim">index</span><canvas class="sess-chart" id="sess-spot"></canvas></div>
+      <div style="margin-top:4px"><span class="dim">open P&amp;L, at what a close pays</span><canvas class="sess-chart" id="sess-open"></canvas></div>`;
+    requestAnimationFrame(() => {
+      drawLine($("sess-spot"), points.map((point) => point.spot), "#6ee7a8", false);
+      drawLine($("sess-open"), points.map((point) => point.open), "#e8a45e", true);
+    });
     return;
   }
   if (app.bottom === "oracle") {
