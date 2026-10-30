@@ -46,6 +46,7 @@ if (chrome === undefined) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SETTLE = process.argv.includes("--settle");
 const findings = [];
 const steps = [];
 
@@ -288,6 +289,25 @@ const cancelOwn = `
   return { row, toast: document.getElementById("s-toast")?.textContent.trim() || null,
            rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
 
+const settleHeld = `
+  document.querySelector('[data-page="positions"]').click();
+  await new Promise((r) => setTimeout(r, 1400));
+  const button = document.querySelector("#pf-table [data-settle]");
+  if (!button) return { done: false,
+    rows: [...document.querySelectorAll("#pf-table tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()),
+    history: [...document.querySelectorAll("#pf-history tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()).slice(0, 3) };
+  const label = button.textContent.trim();
+  const before = document.getElementById("pf-realised")?.textContent.trim();
+  const cashBefore = document.querySelector("#page-positions .kpi:nth-child(3) .value")?.textContent.trim();
+  button.click();
+  await new Promise((r) => setTimeout(r, 3200));
+  return { done: true, label, before, cashBefore,
+           after: document.getElementById("pf-realised")?.textContent.trim(),
+           cashAfter: document.querySelector("#page-positions .kpi:nth-child(3) .value")?.textContent.trim(),
+           toast: document.getElementById("s-toast")?.textContent.trim() || null,
+           history: [...document.querySelectorAll("#pf-history tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()).slice(0, 3),
+           rows: [...document.querySelectorAll("#pf-table tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
+
 const pageText = (page) => `
   document.querySelector('[data-page="${page}"]').click();
   await new Promise((r) => setTimeout(r, 1400));
@@ -434,7 +454,7 @@ else {
 }
 
 console.log("\n7. the other pages");
-for (const page of ["stats", "fees"]) {
+for (const page of ["stats", "vault", "fees"]) {
   const info = await cdp.run(pageText(page));
   steps.push({ step: `page:${page}`, data: info });
   await cdp.shot(`06-${page}`);
@@ -460,6 +480,50 @@ steps.push({ step: "phone:positions", data: phonePositions });
 await cdp.shot("08-phone-positions");
 if (phonePositions.offenders.length) note("phone:positions", "bad", `overflow: ${phonePositions.offenders.join(", ")}`);
 else note("phone:positions", "ok", "positions fits 390px");
+
+if (SETTLE) {
+  console.log("\n9. hold a ticket to expiry, then settle it");
+  await cdp.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
+  await cdp.run(`document.querySelector('[data-page="trade"]').click(); await new Promise((r) => setTimeout(r, 1200));`);
+  // The maker step left the ticket on "Sell to Open · Post Only": buying a ticket
+  // to hold means putting the panel back the way a buyer finds it.
+  await cdp.run(`document.querySelector('#dirs button[data-dir="buy"]')?.click();
+    const toggle = document.getElementById("post-only");
+    if (toggle?.getAttribute("aria-pressed") === "true") toggle.click();
+    await new Promise((r) => setTimeout(r, 500));`);
+  const live = await cdp.run(liveCells);
+  const held = live.filter((c) => c.numeric > 0.001).sort((a, b) => a.numeric - b.numeric)[0];
+  if (!held) note("settle", "bad", "no live cell to hold");
+  else {
+    await cdp.run(clickCell(held.strike, held.kind));
+    const bought = await cdp.run(pressCta);
+    note("settle", /bought/.test(bought.toast || "") ? "ok" : "bad", `held ${held.kind} ${held.strike} → ${bought.toast || bought.error}`);
+    // The ticket's own expiry, not the strip's first chip: the ladder rolls
+    // while this runs, and the series that has to run off is the one bought.
+    const before = await (await fetch(`${BASE}/state?asset=ETH`)).json();
+    const mine = before.positions.rows.find((row) => row.expiryNs);
+    const ns = mine ? Number(mine.expiryNs) : Number(before.expiries[0].ns);
+    const waitMs = Math.max(0, (ns - Date.now() * 1e6) / 1e6) + 20_000;
+    if (waitMs > 8 * 60_000) {
+      note("settle", "warn", `the series expires in ${(waitMs / 60000).toFixed(0)} min: run this with EXPIRY_HOURS=0.03`);
+    } else {
+      console.log(`  … holding for ${Math.round(waitMs / 1000)}s to ${new Date(ns / 1e6).toISOString().slice(11, 19)}Z`);
+      await sleep(waitMs);
+      // The host fixes the series on the next tick after expiry; the row offers
+      // Settle only once the contract has a print to pay from.
+      let outcome = { done: false };
+      for (let attempt = 0; attempt < 30 && !outcome.done; attempt += 1) {
+        outcome = await cdp.run(settleHeld);
+        if (!outcome.done) await sleep(4000);
+      }
+      steps.push({ step: "settle", data: outcome });
+      await cdp.shot("09-settled");
+      if (!outcome.done) note("settle", "bad", `the series never offered Settle · open rows: ${JSON.stringify(outcome.rows || [])}`);
+      else if (!/settled/.test(outcome.toast || "")) note("settle", "bad", `Settle failed: ${outcome.toast || "no toast"}`);
+      else note("settle", "ok", `"${outcome.label}" → ${outcome.toast} · realised ${outcome.before} → ${outcome.after} · cash ${outcome.cashBefore} → ${outcome.cashAfter}`);
+    }
+  }
+}
 
 writeFileSync(join(OUT, "report.json"), JSON.stringify({ base: BASE, at: new Date().toISOString(), steps, findings }, null, 2));
 const bad = findings.filter((f) => f.kind === "bad").length;
