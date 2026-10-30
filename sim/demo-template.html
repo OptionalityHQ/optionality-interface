@@ -340,6 +340,7 @@
     <span class="chg num" data-chg></span>
   </div>
   <button class="connect" id="wallet">No wallet · simulated</button>
+  <button class="iconbtn" id="topup" title="Mint the demo account back up to 5,000 USDT">Top up</button>
   <button class="iconbtn" id="bell">Feed</button>
 </header>
 
@@ -2256,6 +2257,22 @@ $("rail-docs").addEventListener("click", () => { $("price-hint").textContent = "
 $("rail-support").addEventListener("click", () => { $("price-hint").textContent = "support · local prototype, nothing to page"; });
 $("bell").addEventListener("click", () => { app.rtab = "book"; renderAll(); });
 $("wallet").addEventListener("click", () => { $("price-hint").textContent = "no wallet by design · the gateway signs with the sandbox account"; });
+$("topup").addEventListener("click", async () => {
+  // The demo account is the gateway's own sandbox account; this only works while
+  // it is actually short, so pressing it twice does not mint a fortune.
+  $("price-hint").textContent = "topping the demo account up…";
+  try {
+    const response = await fetch("/demo/reset", { method: "POST" });
+    const body = await response.json();
+    if (!body.ok) throw new Error(body.error || "the gateway refused");
+    $("price-hint").textContent = body.toppedUp
+      ? `demo account topped up by $${body.toppedUp.toLocaleString()} · balance ${usd(body.available)}`
+      : `demo account already funded · ${usd(body.available)}`;
+    poll();
+  } catch (error) {
+    $("price-hint").textContent = `top up failed: ${error.message}`;
+  }
+});
 
 const actions = document.createElement("div");
 actions.style.cssText = "padding:0 16px 14px;display:flex;gap:8px";
