@@ -287,6 +287,10 @@ const cancelOwn = `
   button.click();
   await new Promise((r) => setTimeout(r, 2200));
   return { row, toast: document.getElementById("s-toast")?.textContent.trim() || null,
+           // Only my own rows carry a cancel button, so the ids still on offer are
+           // the honest answer to "did the cancel take?" — a substring match against
+           // row text hit the digit inside somebody else's price.
+           mine: [...document.querySelectorAll("#bottom-body [data-cancel]")].map((b) => b.dataset.cancel),
            rows: [...document.querySelectorAll("#bottom-body tbody tr")].map((tr) => tr.textContent.replace(/\\s+/g, " ").trim()) };`;
 
 const oraclePanel = `
@@ -466,7 +470,7 @@ else {
   steps.push({ step: "cancel", data: cancelled });
   await cdp.shot("07-cancelled");
   if (cancelled.error) note("cancel", "bad", cancelled.error);
-  else if (cancelled.rows.some((row) => row.includes(String(rested.rows.find((r) => r.id).id)))) {
+  else if ((cancelled.mine ?? []).includes(String(rested.rows.find((r) => r.id).id))) {
     note("cancel", "bad", `cancel did not take the row off the book: ${cancelled.rows.join(" / ")}`);
   } else {
     note("cancel", "ok", `"Cancel" on ${cancelled.row} → ${cancelled.toast || "no toast"} · book now ${cancelled.rows.length} row(s)`);
@@ -523,7 +527,14 @@ if (SETTLE) {
     if (toggle?.getAttribute("aria-pressed") === "true") toggle.click();
     await new Promise((r) => setTimeout(r, 500));`);
   const live = await cdp.run(liveCells);
-  const held = live.filter((c) => c.numeric > 0.001).sort((a, b) => a.numeric - b.numeric)[0];
+  // The cell nearest the index, not the cheapest: a deep wing is the cell whose
+  // model price flips to "not openable" first, and the close then has nothing to
+  // trade against — an honest refusal, but a poor thing to build a demo on.
+  const board = await (await fetch(`${BASE}/state?asset=ETH`)).json();
+  const index = Number(board.spot ?? 0);
+  const held = live
+    .filter((c) => c.numeric > 0.001)
+    .sort((a, b) => Math.abs(Number(a.strike) - index) - Math.abs(Number(b.strike) - index))[0];
   if (!held) note("settle", "bad", "no live cell to hold");
   else {
     await cdp.run(clickCell(held.strike, held.kind));
