@@ -428,6 +428,7 @@
       </div>
     </div>
     <div class="adv"><span>Advanced · Post Only</span><span class="toggle" id="post-only" role="button" aria-pressed="false"></span></div>
+    <div class="adv"><span>Hold to expiry · no fee</span><span class="toggle" id="hold" role="button" aria-pressed="false"></span></div>
     <button class="cta" id="cta" disabled>Select a strike</button>
     <div class="sum">
       <div class="srow"><span>Margin Required</span><b id="k-margin">$0.00</b></div>
@@ -709,7 +710,7 @@ const app = {
   asset: "ETH", expiryIndex: 0, kind: "Put", strike: null, dir: "buy",
   postOnly: false, bottom: "balances", rtab: "payoff", state: null, online: false, pendingSelect: false,
   userSized: false,
-  feedState: null, expiries: [], renderedTicks: -1, lastError: null, smile: null, smileBusy: false,
+  feedState: null, expiries: [], renderedTicks: -1, lastError: null, smile: null, smileBusy: false, hold: false,
   /* The gateway pushes index prints and fills on /stream; /state stays the
      slow, heavy read of the chain. `seen` holds the last rendered value of
      every figure so a change can be marked rather than silently repainted. */
@@ -853,6 +854,7 @@ async function act(type, extra = {}) {
     // Fill or kill rides with the action: the contract refuses a partial fill
     // instead of taking what happens to be resting.
     fill: $("order-type").value === "fok" ? "fok" : undefined,
+    hold: app.hold && type === "buy" ? true : undefined,
     ...extra,
   };
   try {
@@ -1196,6 +1198,11 @@ function renderTicket() {
   $("title").textContent = `${app.asset} ${fmt(low, 0)}/${fmt(high, 0)} ${app.kind} Spread`;
   $("subtitle").textContent = `${expiry?.label ?? "—"} · ${$("chain-head").querySelector(".mid")?.textContent ?? ""}`;
 
+  // Whether this ticket is on the fee-free path has to be known before the hint,
+  // the premium and the button are drawn — declaring it beside them made the
+  // first read a temporal-dead-zone error and took the whole render down.
+  const holding = app.hold && app.dir === "buy";
+
   // A resting order has to sit outside the book, and the book can be crossed —
   // a person's bid above the vault's ask is a real arbitrage, not a typo — so the
   // post-only default is computed off the far side rather than copied from it.
@@ -1227,14 +1234,18 @@ function renderTicket() {
   // place the trader learns it.
   const age = row.poolQuoteAgeS;
   const aged = age === null || age === undefined ? "" : ` · venue quote ${age < 1 ? "under 1" : age.toFixed(0)} s old`;
-  $("price-hint").innerHTML = app.postOnly
+  $("price-hint").innerHTML = holding
+    ? `Hold at <b>${row.poolMid === null ? "—" : usd(row.poolMid)}</b> · the mid, no venue fee · the ticket cannot be closed or sold before expiry${aged}`
+    : app.postOnly
     ? `${app.dir === "buy" ? "Resting bid" : "Resting offer"} at <b>${usd(reference)}</b> · best ${app.dir === "buy" ? `bid ${usd(row.bid)}` : `ask ${usd(row.ask)}`}`
     : app.dir === "buy"
       ? `Ask <b>${usd(agreed)}</b> · ${depth(row.askSize)} · mark ${usd(row.mark)}${aged}`
       : `Bid <b>${usd(agreed)}</b> · ${depth(row.bidSize)} · mark ${usd(row.mark)}${aged}`;
 
   const contracts = amount();
-  const limit = Number($("price").value) || reference;
+  // A held ticket is priced at the mid, not at the ask: the venue charges no
+  // margin for it, and the only thing the buyer gives up is the exits.
+  const limit = holding ? (row.poolMid ?? 0) : Number($("price").value) || reference;
   const premium = contracts * limit;
   $("k-margin").textContent = app.dir === "sell" ? usd(contracts * (high - low)) : usd(premium);
   const you = app.state?.you;
@@ -1243,8 +1254,10 @@ function renderTicket() {
   // The venue's cut is inside the entry, so it is the gap between the mark and
   // the price asked — not a line added afterwards. Both numbers are the
   // engine's; this only subtracts them.
-  const load = app.dir === "buy" ? row.ask - row.mark : row.mark - row.bid;
-  $("k-fee").textContent = `${usd(load * contracts)} · ${((load / Math.max(app.dir === "buy" ? row.ask : row.mark, 1e-9)) * 10_000).toFixed(0)} bps`;
+  const load = holding ? 0 : app.dir === "buy" ? row.ask - row.mark : row.mark - row.bid;
+  $("k-fee").textContent = holding
+    ? `$0.00 · held to expiry, no early close`
+    : `${usd(load * contracts)} · ${((load / Math.max(app.dir === "buy" ? row.ask : row.mark, 1e-9)) * 10_000).toFixed(0)} bps`;
 
   const settled = series && series.settlement !== "open";
   // Player vs pool: the vault is the counterparty to every ticket, so what
@@ -1278,17 +1291,22 @@ function renderTicket() {
   // Posting an order never needs a counterparty: that is the whole point of
   // resting one. Only a taker needs somebody on the other side, and only a taker
   // is what `fillable` describes.
-  cta.disabled = !app.online || settled || !isLive() || vaultFull || (!app.postOnly && !fillable);
+  const holdBlocked = holding && (row.poolMid === null || row.poolMid === undefined);
+  cta.disabled = !app.online || settled || !isLive() || vaultFull || holdBlocked || (!app.postOnly && !fillable);
   cta.className = `cta ${app.dir === "sell" ? "sell" : ""}`;
   if (!app.online) cta.textContent = "Gateway offline";
   else if (settled) cta.textContent = `Series ${series.settlement}`;
   else if (!isLive()) cta.textContent = "Waiting for a live print";
+  else if (holdBlocked) cta.textContent = `No mid published at ${app.asset} ${app.kind[0]}${app.strike} · the vault is not quoting it`;
   else if (!fillable) {
     cta.textContent = app.dir === "buy" && row.poolAsk === null
       ? `No price published at ${app.asset} ${app.kind[0]}${app.strike} · the vault is not selling it`
       : `Nothing quoted at ${app.asset} ${app.kind[0]}${app.strike}`;
   }
   else if (vaultFull) cta.textContent = "The vault is empty · enter it, or wait for the open tickets to run off";
+  else if (holding) {
+    cta.textContent = `Buy & hold ${contracts} @ ${usd(limit)} · no fee`;
+  }
   else if (app.dir === "buy") {
     cta.textContent = app.postOnly || !matchable
       ? `Rest bid · ${contracts} @ ${usd(limit)}`
@@ -2071,7 +2089,7 @@ function renderPositions() {
               // floor to ask for — `pool_close` pays the price the venue is
               // quoting, so the button names it with "@". Into a bidder there is
               // a real minimum, and "≥" is what the contract enforces.
-              `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ${row.againstPool ? "@" : "≥"} ${usd(row.exitUnit)}</button>`
+              `<button class="ghost" data-close="${row.seriesKey}#${row.ticketId}" data-expiry="${row.expiryNs}" data-contracts="${row.contracts}" data-limit="${row.exitUnit}">Close ${row.againstPool ? "@" : "≥"} ${usd(row.exitUnit)}</button>`
             : row.settlement === "fixed" || row.settlement === "void"
               ? // The series has a print: the ticket's value is decided, and the
                 // only thing left is to ask for it. Addressed by ticket id, so it
@@ -2107,12 +2125,18 @@ function renderPositions() {
     button.addEventListener("click", () => {
       const [seriesKey, ticketId] = button.dataset.close.split("#");
       const [, , kind, strike] = seriesKey.split("|");
-      closePosition(kind, Number(strike), ticketId, Number(button.dataset.limit), Number(button.dataset.contracts));
+      // The ticket's own expiry, not the chip on screen: the strip can roll under
+      // the click, and a close addressed to the wrong ladder is refused for a
+      // series the trader never held.
+      closePosition(kind, Number(strike), ticketId, Number(button.dataset.limit), Number(button.dataset.contracts), button.dataset.expiry);
     }));
 }
 
-async function closePosition(kind, strike, ticket, limit, contracts) {
-  const body = { type: "close", asset: app.asset, kind, strike, ticket, quantity: contracts, limit, expiry: expiryStamp() };
+async function closePosition(kind, strike, ticket, limit, contracts, expiryNs) {
+  const body = {
+    type: "close", asset: app.asset, kind, strike, ticket, quantity: contracts, limit,
+    expiry: expiryNs ?? expiryStamp(),
+  };
   try {
     const response = await fetch(`${MARKET_URL}/action`, {
       method: "POST",
@@ -2244,6 +2268,14 @@ document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
 document.querySelectorAll("#bottom-tabs [data-panel]").forEach((tab) =>
   tab.addEventListener("click", () => { app.bottom = tab.dataset.panel; renderAll(); }));
 $("post-only").addEventListener("click", () => { app.postOnly = !app.postOnly; syncControls(); renderTicket(); });
+$("hold").addEventListener("click", () => {
+  app.hold = !app.hold;
+  // Holding and resting are opposites: one takes the vault's mid now, the other
+  // waits for somebody else. Turning one on turns the other off.
+  if (app.hold) app.postOnly = false;
+  syncControls();
+  renderTicket();
+});
 $("cta").addEventListener("click", () => act(app.dir === "buy" ? "buy" : "sell"));
 $("amount").addEventListener("input", () => { app.userSized = true; renderTicket(); });
 $("price").addEventListener("input", renderTicket);

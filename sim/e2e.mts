@@ -87,6 +87,25 @@ const shot = async (name: string) => {
 };
 const text = async (selector: string) =>
   (await page.locator(selector).first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+/**
+ * The next toast, which is not the previous one. A toast lives for eight seconds,
+ * so reading `#s-toast` after a click can return the *last* action's sentence —
+ * which made the hold step believe it had sold a ticket it had just bought.
+ */
+const toastAfter = async (before: string, timeout = 20_000) => {
+  await page
+    .waitForFunction(
+      (prior) => {
+        const now = (document.getElementById("s-toast")?.textContent ?? "").trim();
+        return now.length > 0 && now !== prior;
+      },
+      before,
+      { timeout },
+    )
+    .catch(() => undefined);
+  return text("#s-toast");
+};
+
 /** The first toast of any kind, so a refusal is named instead of timing out. */
 const firstToast = async (timeout = 15_000) => {
   await page
@@ -118,22 +137,48 @@ else if (!/median of/i.test(banner)) note("bad", "open", `the banner does not sa
 else if (!/No wallet/.test(await text("#wallet"))) note("warn", "open", "the account button does not say it is simulated");
 else note("ok", "open", `${rows} rows · ${asks} priced sides · ${banner.slice(0, 90)}`);
 
+/** Vault-priced cells, nearest the index first, or nothing yet. */
+const vaultCells = async (): Promise<Array<{ strike: number; kind: string; price: number }>> => {
+  const body = (await (await fetch(`${BASE}/state?asset=ETH`)).json()) as {
+    spot?: number | null;
+    chain: Array<{
+      strike: number;
+      call: { ask: number; takeAskFrom: string | null } | null;
+      put: { ask: number; takeAskFrom: string | null } | null;
+    }>;
+  };
+  const spot = Number(body.spot ?? 0);
+  return body.chain
+    .flatMap((row) =>
+      (["call", "put"] as const).map((kind) => ({
+        strike: row.strike,
+        kind: kind === "call" ? "Call" : "Put",
+        price: Number(row[kind]?.ask ?? 0),
+        from: row[kind]?.takeAskFrom ?? null,
+      })),
+    )
+    .filter((cell) => cell.from === "pool" && cell.price > 0.001)
+    .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot));
+};
+
+/** Wait for a cell the *vault* is quoting: the book can quote before the vault does. */
+const waitForVaultCell = async (timeoutMs = 180_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const cells = await vaultCells().catch(() => []);
+    if (cells.length > 0) return cells;
+    await page.waitForTimeout(2_000);
+  }
+  return [];
+};
+
 /* 1b · wait for the venue to be sellable ----------------------------------- */
 // A freshly booted venue is listed before it is quoted, so the ladder can be
 // full of dashes for a minute. A person waits; a script has to say so, or it
 // tests the boot rather than the product.
 console.log("\n1b. waiting for a quote to trade against");
-const warm = await page
-  .waitForFunction(
-    () =>
-      [...document.querySelectorAll("#chain td.price.ask[data-kind]")].some(
-        (cell) => Number((cell.textContent ?? "").replace(/[^0-9.]/g, "")) > 0.001,
-      ),
-    undefined,
-    { timeout: 150_000, polling: 1_000 },
-  )
-  .then(() => true)
-  .catch(() => false);
+const firstCells = await waitForVaultCell();
+const warm = firstCells.length > 0;
 steps.push({ step: "warm", data: { tradeable: warm } });
 if (!warm) note("bad", "warm", "no cell carried a vault quote after 150 s");
 else note("ok", "warm", "the ladder is selling");
@@ -144,24 +189,7 @@ const spot = Number((await text("#idx-ETH [data-px]")).replace(/[^0-9.]/g, ""));
 // Buy from the **vault**, not from whatever a person happens to be resting.
 // A pool ticket can always be closed back to the pool, so the rest of the journey
 // is deterministic; a book fill would make the close depend on a bidder.
-const state = (await (await fetch(`${BASE}/state?asset=ETH`)).json()) as {
-  chain: Array<{
-    strike: number;
-    call: { ask: number; takeAskFrom: string | null } | null;
-    put: { ask: number; takeAskFrom: string | null } | null;
-  }>;
-};
-const ordered = state.chain
-  .flatMap((row) =>
-    (["call", "put"] as const).map((kind) => ({
-      strike: row.strike,
-      kind: kind === "call" ? "Call" : "Put",
-      price: Number(row[kind]?.ask ?? 0),
-      from: row[kind]?.takeAskFrom ?? null,
-    })),
-  )
-  .filter((cell) => cell.from === "pool" && cell.price > 0.001)
-  .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot));
+const ordered = await waitForVaultCell();
 if (ordered.length === 0) note("warn", "buy", "no cell is quoting from the vault right now");
 let bought: { label: string; toast: string } | null = null;
 for (const cell of ordered.slice(0, 6)) {
@@ -212,13 +240,53 @@ const close = page.locator("#pf-table tbody button[data-close]").first();
 if ((await close.count()) === 0) note("warn", "close", "nothing on the page can be closed");
 else {
   const label = (await close.innerText()).trim();
+  const beforeClose = await text("#s-toast");
   await close.click();
-  const toast = await waitToast(/sold/i).catch(async () => text("#s-toast"));
+  const toast = await toastAfter(beforeClose);
   steps.push({ step: "close", data: { label, toast } });
   await shot("04-closed");
   if (/sold/i.test(toast)) note("ok", "close", `"${label}" → ${toast}`);
   else note("bad", "close", `"${label}" → ${toast || "no toast"}`);
 }
+
+/* 3b · hold to expiry, at the mid with no fee ------------------------------- */
+console.log("\n3b. hold to expiry");
+await page.locator('[data-page="trade"]').click();
+const heldCell = (await waitForVaultCell(20_000))[0];
+if (heldCell) {
+  await page.locator(`#chain tr[data-strike="${heldCell.strike}"] td.price.ask[data-kind="${heldCell.kind}"]`).click();
+  await page
+    .waitForFunction(() => {
+      const button = document.getElementById("cta");
+      return Boolean(button) && !/Loading/i.test(button!.textContent ?? "");
+    }, undefined, { timeout: 6_000 })
+    .catch(() => undefined);
+}
+await page.locator("#hold").click();
+await cta.waitFor();
+const holdLabel = (await cta.innerText()).trim();
+if (!/no fee/i.test(holdLabel)) note("warn", "hold", `the button does not offer the fee-free path: ${holdLabel}`);
+else {
+  const beforeHold = await text("#s-toast");
+  await cta.click();
+  const toast = await toastAfter(beforeHold);
+  steps.push({ step: "hold", data: { label: holdLabel, toast } });
+  await shot("04b-held");
+  if (!/held/i.test(toast)) note("bad", "hold", `"${holdLabel}" → ${toast || "no toast"}`);
+  else {
+    note("ok", "hold", `${holdLabel} → ${toast}`);
+    await page.locator('[data-page="positions"]').click();
+    await page.locator("#pf-table tbody tr").first().waitFor({ timeout: 15_000 });
+    const rows = await page.locator("#pf-table tbody tr").allInnerTexts();
+    const held = rows.find((row) => /held to expiry/i.test(row));
+    steps.push({ step: "hold:positions", data: { rows } });
+    if (!held) note("bad", "hold", `no row reads as held: ${rows.join(" / ").slice(0, 160)}`);
+    else note("ok", "hold", held.replace(/\s+/g, " ").slice(0, 140));
+    await page.locator('[data-page="trade"]').click();
+  }
+}
+// Back to the ordinary path for the steps that follow.
+if ((await page.locator("#hold").getAttribute("aria-pressed")) === "true") await page.locator("#hold").click();
 
 /* 4 · rest an offer, then take it back ------------------------------------- */
 console.log("\n4. rest an offer, then take it back");
@@ -231,8 +299,9 @@ await cta.waitFor();
 if (await cta.isDisabled()) note("warn", "rest", `the CTA is disabled: ${(await cta.innerText()).trim()}`);
 else {
   const label = (await cta.innerText()).trim();
+  const beforeRest = await text("#s-toast");
   await cta.click();
-  const restToast = await waitToast(/resting/i).catch(async () => text("#s-toast"));
+  const restToast = await toastAfter(beforeRest);
   await page.locator('#bottom-tabs [data-panel="orders"]').click();
   await page.locator("#bottom-body tbody tr").first().waitFor({ timeout: 15_000 }).catch(() => undefined);
   const mine = page.locator("#bottom-body [data-cancel]").first();
