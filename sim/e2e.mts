@@ -17,7 +17,8 @@
  * against the sandbox chain; there is no mocked backend anywhere.
  */
 import { chromium } from "playwright-core";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const arg = (name: string, fallback: string): string => {
@@ -28,6 +29,13 @@ const BASE = arg("--url", "http://127.0.0.1:8790").replace(/\/$/, "");
 const OUT = arg("--out", "evidence/e2e");
 const SETTLE = process.argv.includes("--settle");
 const HEADED = process.argv.includes("--headed");
+/**
+ * Recorded unless `--no-video`. A journey is easier to hand to somebody as a file
+ * than as a description, and the video shows the *timing* a screenshot cannot: the
+ * toast landing, the ladder repricing under the click, the settle button arriving.
+ */
+const VIDEO = !process.argv.includes("--no-video");
+const JOURNEY = SETTLE ? "journey-settle" : "journey-fast";
 
 type Kind = "ok" | "warn" | "bad";
 interface Finding {
@@ -43,9 +51,19 @@ const note = (kind: Kind, step: string, text: string) => {
 };
 
 mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({ channel: "chrome", headless: !HEADED });
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const browser = await chromium.launch({
+  channel: "chrome",
+  headless: !HEADED,
+  // A quarter-second between actions is the difference between a recording a
+  // person can follow and a blur of state changes.
+  slowMo: VIDEO ? 80 : 0,
+});
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+  recordVideo: VIDEO ? { dir: join(OUT, "video-raw"), size: { width: 1280, height: 800 } } : undefined,
+});
 const page = await context.newPage();
+const video = VIDEO ? page.video() : null;
 
 const consoleErrors: string[] = [];
 const failedRequests: string[] = [];
@@ -70,7 +88,7 @@ const shot = async (name: string) => {
 const text = async (selector: string) =>
   (await page.locator(selector).first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
 /** The first toast of any kind, so a refusal is named instead of timing out. */
-const firstToast = async (timeout = 6_000) => {
+const firstToast = async (timeout = 15_000) => {
   await page
     .waitForFunction(() => (document.getElementById("s-toast")?.textContent ?? "").trim().length > 0, undefined, {
       timeout,
@@ -123,21 +141,28 @@ else note("ok", "warm", "the ladder is selling");
 /* 2 · buy ------------------------------------------------------------------ */
 console.log("\n2. buy near the money");
 const spot = Number((await text("#idx-ETH [data-px]")).replace(/[^0-9.]/g, ""));
-const cells = await page.locator("#chain tr[data-strike]").evaluateAll((rows) =>
-  rows.flatMap((row) => {
-    const strike = Number((row as HTMLElement).dataset.strike);
-    return [...row.querySelectorAll("td.price.ask[data-kind]")]
-      .map((cell) => ({
-        strike,
-        kind: (cell as HTMLElement).dataset.kind ?? "",
-        price: Number((cell.textContent ?? "").replace(/[^0-9.]/g, "")),
-      }))
-      .filter((cell) => cell.price > 0.001);
-  }),
-);
-const ordered = cells
-  .filter((cell) => Number.isFinite(cell.strike))
+// Buy from the **vault**, not from whatever a person happens to be resting.
+// A pool ticket can always be closed back to the pool, so the rest of the journey
+// is deterministic; a book fill would make the close depend on a bidder.
+const state = (await (await fetch(`${BASE}/state?asset=ETH`)).json()) as {
+  chain: Array<{
+    strike: number;
+    call: { ask: number; takeAskFrom: string | null } | null;
+    put: { ask: number; takeAskFrom: string | null } | null;
+  }>;
+};
+const ordered = state.chain
+  .flatMap((row) =>
+    (["call", "put"] as const).map((kind) => ({
+      strike: row.strike,
+      kind: kind === "call" ? "Call" : "Put",
+      price: Number(row[kind]?.ask ?? 0),
+      from: row[kind]?.takeAskFrom ?? null,
+    })),
+  )
+  .filter((cell) => cell.from === "pool" && cell.price > 0.001)
   .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot));
+if (ordered.length === 0) note("warn", "buy", "no cell is quoting from the vault right now");
 let bought: { label: string; toast: string } | null = null;
 for (const cell of ordered.slice(0, 6)) {
   const cellLocator = page.locator(
@@ -160,7 +185,8 @@ for (const cell of ordered.slice(0, 6)) {
   }
   await cta.click();
   const toast = await firstToast();
-  if (/bought/i.test(toast)) {
+  // Two fills are legitimate: the vault's own price, or a person's resting offer.
+  if (/bought|took \d+x off the book/i.test(toast)) {
     bought = { label, toast };
     break;
   }
@@ -311,7 +337,9 @@ if (SETTLE) {
     };
     const expiryNs = state.positions.rows[0]?.expiryNs ?? 0;
     const waitMs = Math.max(0, (expiryNs - Date.now() * 1e6) / 1e6) + 20_000;
-    if (waitMs > 8 * 60_000) note("warn", "settle", `the series expires in ${(waitMs / 60_000).toFixed(0)} min: run with EXPIRY_HOURS=0.12`);
+    // The guard is against a twelve-hour ladder, not against a long hold: a
+    // quarter-hour tenor is a perfectly good settlement demo.
+    if (waitMs > 15 * 60_000) note("warn", "settle", `the series expires in ${(waitMs / 60_000).toFixed(0)} min: run with EXPIRY_HOURS=0.2`);
     else {
       console.log(`  ... holding for ${Math.round(waitMs / 1000)}s`);
       await page.waitForTimeout(waitMs);
@@ -348,9 +376,41 @@ else note("ok", "network", "no failed requests");
 steps.push({ step: "console", data: { consoleErrors, failedRequests, badResponses } });
 
 await context.tracing.stop({ path: join(OUT, "trace.zip") });
+let videoPath: string | null = null;
+if (video) {
+  // The file only exists once the context is closed; save it, then transcode to
+  // mp4 with whatever ffmpeg is on the machine, because webm is not what people
+  // paste into a deck.
+  await context.close();
+  const webm = join(OUT, `${JOURNEY}.webm`);
+  await video.saveAs(webm);
+  const mp4 = join(OUT, `${JOURNEY}.mp4`);
+  // Always transcode the recording that was just made: an existing file from a
+  // previous run is not this run's video, and short-circuiting on it deleted the
+  // fresh webm and kept the stale mp4.
+  const converted =
+    spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", webm, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", mp4]).status === 0;
+  const seconds = converted
+    ? Number(spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", mp4]).stdout?.toString().trim() ?? 0)
+    : 0;
+  console.log(`  video: ${converted ? mp4 : webm} (${seconds.toFixed(1)}s of activity)`);
+  if (converted) {
+    rmSync(webm, { force: true });
+    rmSync(join(OUT, "video-raw"), { recursive: true, force: true });
+    videoPath = mp4;
+  } else {
+    videoPath = webm;
+  }
+} else {
+  await context.close();
+}
 writeFileSync(
   join(OUT, "report.json"),
-  JSON.stringify({ base: BASE, at: new Date().toISOString(), driver: "playwright", steps, findings }, null, 2),
+  JSON.stringify(
+    { base: BASE, at: new Date().toISOString(), driver: "playwright", journey: JOURNEY, video: videoPath, steps, findings },
+    null,
+    2,
+  ),
 );
 const blockers = findings.filter((finding) => finding.kind === "bad").length;
 const rough = findings.filter((finding) => finding.kind === "warn").length;
