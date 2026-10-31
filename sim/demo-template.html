@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+  <link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bounded Options — BTC/ETH protection tickets on live prices</title>
 <style>
@@ -60,6 +61,8 @@
   .grow{flex:1}
   .connect{padding:6px 14px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink);
     font-size:13px;white-space:nowrap}
+  .brand{white-space:nowrap}
+  @media (max-width:1100px){#topup{display:none}}
   .connect:hover{border-color:var(--accent)}
   .index{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
   .index .sym{color:var(--dim);font-size:12px}
@@ -340,7 +343,7 @@
     <span class="chg num" data-chg></span>
   </div>
   <button class="connect" id="wallet">No wallet · simulated</button>
-  <button class="iconbtn" id="topup" title="Mint the demo account back up to 5,000 USDT">Top up</button>
+  <button class="connect" id="topup" title="Mint the demo account back up to 5,000,000 USDT">Top up</button>
   <button class="iconbtn" id="bell">Feed</button>
 </header>
 
@@ -406,7 +409,7 @@
     </div>
     <div class="field">
       <label>Order Type</label>
-      <select id="order-type"><option value="limit">Limit</option><option value="market">Market</option></select>
+      <select id="order-type"><option value="limit">Limit</option><option value="market">Market</option><option value="fok">Fill or kill</option></select>
     </div>
     <div class="field">
       <label>Limit Price</label>
@@ -847,6 +850,9 @@ async function act(type, extra = {}) {
   const body = {
     type, asset: app.asset, kind: app.kind, strike: app.strike, expiry: expiryStamp(),
     quantity: amount(), limit: Number($("price").value) || lastReference(), postOnly: app.postOnly,
+    // Fill or kill rides with the action: the contract refuses a partial fill
+    // instead of taking what happens to be resting.
+    fill: $("order-type").value === "fok" ? "fok" : undefined,
     ...extra,
   };
   try {
@@ -2242,7 +2248,7 @@ $("cta").addEventListener("click", () => act(app.dir === "buy" ? "buy" : "sell")
 $("amount").addEventListener("input", () => { app.userSized = true; renderTicket(); });
 $("price").addEventListener("input", renderTicket);
 $("order-type").addEventListener("change", () => {
-  if ($("order-type").value === "market") app.postOnly = false;
+  if ($("order-type").value !== "limit") app.postOnly = false;
   syncControls();
   renderTicket();
 });
