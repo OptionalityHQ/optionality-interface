@@ -435,6 +435,8 @@
     .status{padding:0 20px}
   }
 </style>
+<link rel="stylesheet" href="/wallet.css">
+<script defer src="/wallet.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -946,6 +948,7 @@ async function poll() {
   if (app.strike !== null) params.set("strike", String(app.strike));
   const expiry = expiryStamp();
   if (expiry) params.set("expiry", expiry);
+  if (window.optionalityWallet?.account) params.set("account", window.optionalityWallet.account);
   try {
     const response = await fetch(`${MARKET_URL}/state?${params}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`state ${response.status}`);
@@ -978,12 +981,8 @@ async function act(type, extra = {}) {
     ...extra,
   };
   try {
-    const response = await fetch(`${MARKET_URL}/action`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
+    if (!window.optionalityWallet) throw new Error("wallet is still loading; try again");
+    const result = await window.optionalityWallet.submit(body);
     if (!result.ok) throw new Error(result.error);
     app.toast = { text: result.message, at: Date.now() };
   } catch (error) {
@@ -2085,12 +2084,8 @@ async function fund(type, value, unit) {
   }
   const body = { type, [unit]: value };
   try {
-    const response = await fetch(`${MARKET_URL}/action`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
+    if (!window.optionalityWallet) throw new Error("wallet is still loading; try again");
+    const result = await window.optionalityWallet.submit(body);
     if (!result.ok) throw new Error(result.error);
     app.toast = { text: result.message, at: Date.now() };
   } catch (error) {
@@ -2259,12 +2254,8 @@ async function closePosition(kind, strike, ticket, limit, contracts, expiryNs) {
     expiry: expiryNs ?? expiryStamp(),
   };
   try {
-    const response = await fetch(`${MARKET_URL}/action`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
+    if (!window.optionalityWallet) throw new Error("wallet is still loading; try again");
+    const result = await window.optionalityWallet.submit(body);
     if (!result.ok) throw new Error(result.error);
     app.toast = { text: `ticket ${ticket} ${result.message}`, at: Date.now() };
   } catch (error) {
@@ -2415,18 +2406,26 @@ document.querySelectorAll("[data-page]").forEach((button) =>
 $("rail-docs").addEventListener("click", () => { $("price-hint").textContent = "docs · near-mvp/README.md and docs/04"; });
 $("rail-support").addEventListener("click", () => { $("price-hint").textContent = "support · local prototype, nothing to page"; });
 $("bell").addEventListener("click", () => { app.rtab = "book"; renderAll(); });
-$("wallet").addEventListener("click", () => { $("price-hint").textContent = "no wallet by design · the gateway signs with the sandbox account"; });
+window.addEventListener("optionality-wallet", (event) => {
+  $("wallet").textContent = event.detail.account ?? "Connect wallet";
+  $("wallet").title = event.detail.account ? "Disconnect your testnet wallet" : "Connect your NEAR testnet wallet";
+  $("topup").textContent = "Get test tokens";
+  poll();
+});
+window.addEventListener("optionality-wallet-result", (event) => {
+  app.toast = { text: event.detail.error ?? `wallet submitted · ${event.detail.hashes}; check the receipt`, at: Date.now(), bad: Boolean(event.detail.error) };
+  poll();
+});
 $("topup").addEventListener("click", async () => {
   // The demo account is the gateway's own sandbox account; this only works while
   // it is actually short, so pressing it twice does not mint a fortune.
   $("price-hint").textContent = "topping the demo account up…";
   try {
-    const response = await fetch("/demo/reset", { method: "POST" });
-    const body = await response.json();
+    const body = await window.optionalityWallet.claim();
     if (!body.ok) throw new Error(body.error || "the gateway refused");
-    $("price-hint").textContent = body.toppedUp
+    $("price-hint").textContent = body.message ?? (body.toppedUp
       ? `demo account topped up by $${body.toppedUp.toLocaleString()} · balance ${usd(body.available)}`
-      : `demo account already funded · ${usd(body.available)}`;
+      : `demo account already funded · ${usd(body.available)}`);
     poll();
   } catch (error) {
     $("price-hint").textContent = `top up failed: ${error.message}`;
@@ -2445,7 +2444,10 @@ $("v-deposit").addEventListener("click", () => fund("deposit", Number($("v-amoun
 $("v-withdraw").addEventListener("click", () => fund("withdraw", Number($("v-amount").value), "amount"));
 $("v-enter").addEventListener("click", () => fund("pool-deposit", Number($("v-amount").value), "amount"));
 $("v-redeem").addEventListener("click", () => fund("pool-withdraw", Number($("v-shares-in").value), "shares"));
-$("wallet").addEventListener("click", () => setPage("vault"));
+$("wallet").addEventListener("click", async () => {
+  if (window.optionalityWallet?.testnet) await window.optionalityWallet.connect();
+  else setPage("vault");
+});
 
 $("expire").addEventListener("click", () => act("expire"));
 $("settle").addEventListener("click", () => act("settle"));

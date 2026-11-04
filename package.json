@@ -15,16 +15,25 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@near-wallet-selector/core": "10.1.4",
+    "@near-wallet-selector/modal-ui": "10.1.4",
+    "@near-wallet-selector/my-near-wallet": "10.1.4",
     "@remotion/cli": "^4.0.540",
     "near-api-js": "^4.0.4",
+    "util": "0.12.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^18.3.31",
+    "esbuild": "0.28.2",
     "playwright-core": "^1.64.1",
     "remotion": "^4.0.539",
     "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "base-x": "^3.0.11",
+    "secp256k1": "^5.0.1"
   }
 }
