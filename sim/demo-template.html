@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230b1722%27/%3E%3Cpath d=%27M8 6h6v20H8z%27 fill=%27%2371ddbc%27/%3E%3Cpath d=%27M18 6h6v20h-6z%27 fill=%27%23eef4ed%27/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0b1722">
+<meta name="description" content="Optionality — onchain options with an order book, pooled liquidity and defined risk. A local NEAR sandbox prototype.">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bounded Options — BTC/ETH protection tickets on live prices</title>
+<title>Optionality — Onchain options on NEAR</title>
 <style>
-  /* Derive's own typeface: Geist for the interface, Geist Mono for every
+  /* Optionality uses Geist for the interface, Geist Mono for every
      figure. Both are variable, latin subset, SIL OFL 1.1 (demo/fonts/OFL.txt),
      served from this folder so the screen renders the real face offline. */
   @font-face{font-family:"Geist";src:url("fonts/geist-latin.woff2") format("woff2");
@@ -19,10 +21,40 @@
     --ground:#171719; --panel:#131217; --panel-2:#1b1a1f; --raised:#212023;
     --line:#222224; --line-2:#3a3a3e; --rule:#1b1a1f;
     --ink:#ffffff; --dim:#9a9da3; --dim-2:#8a8c92;
-    --bid:#e5566f; --ask:#44a282; --accent:#4a8ad6; --warn:#d9a441;
+    --bid:#e5566f; --ask:#44a282; --accent:#71ddbc; --warn:#d9a441;
     --row:#131217; --row-hi:#1f1e23; --surface:#131217;
     --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
     --sans:"Geist",system-ui,sans-serif;
+  }
+
+  /* Enhanced visual layers - deeper gradients, better hierarchy */
+  :root {
+    /* Data terminal (tasteskill, seed 520067027): cards darker than the
+       ground, one accent used only as a 1px line, colour on data alone. */
+    --ground:#171719; --panel:#131217; --panel-2:#1b1a1f; --raised:#212023;
+    --line:#222224; --line-2:#3a3a3e; --rule:#1b1a1f;
+    --ink:#ffffff; --dim:#9a9da3; --dim-2:#8a8c92;
+    --bid:#e5566f; --ask:#44a282; --accent:#71ddbc; --warn:#d9a441;
+    --row:#131217; --row-hi:#1f1e23; --surface:#131217;
+
+    /* Gradient overlays for depth */
+    --gradient-top: linear-gradient(180deg, rgba(23,23,25,0) 0%, rgba(23,23,25,0.7) 100%);
+    --gradient-card: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+
+    /* Shadows for elevation */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+
+    /* Border radius for soft edges */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    /* Highlights for active states */
+    --highlight-primary: rgba(113,221,188,0.15);
+    --highlight-success: rgba(68,162,130,0.12);
+    --highlight-danger: rgba(229,86,111,0.12);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -43,11 +75,14 @@
 
   .topbar{height:48px;flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:0 20px;
     background:var(--panel);border-bottom:1px solid var(--line)}
-  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;letter-spacing:-.01em}
-  .brand .mark{width:16px;height:16px;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;flex:0 0 auto}
-  .brand .mark i{display:block}
-  .brand .mark i:first-child{background:var(--ask)}
-  .brand .mark i:last-child{background:var(--bid)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:18px;letter-spacing:-.035em;white-space:nowrap}
+  .brand .mark{width:23px;height:25px;display:flex;gap:5px;align-items:center;flex:0 0 auto}
+  .brand .logo{font-size:18px;color:var(--ink)}
+  .brand .mark i{display:block;width:7px;height:25px;border-radius:1px}
+  .brand .mark i:first-child{background:#71ddbc}
+  .brand .mark i:last-child{background:#eef4ed}
+  .network{font-size:10px;font-weight:500;letter-spacing:.04em;color:var(--dim);line-height:1.2;border-left:1px solid var(--line-2);padding-left:10px}
+  .network span{display:block;color:var(--ask);margin-bottom:3px}
   .nav{display:flex;gap:4px}
   .nav button{padding:6px 10px;color:var(--dim);font-size:13px;position:relative}
   .nav button:hover{color:var(--ink)}
@@ -72,6 +107,19 @@
   .iconbtn{width:30px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--dim);
     border:1px solid var(--line-2);font-size:12px}
   .iconbtn:hover{color:var(--ink);border-color:var(--accent)}
+
+  /* Wallet area */
+  .wallet-area{display:flex;align-items:center;gap:8px}
+  .btn-connect,.btn-topup{padding:6px 14px;border-radius:999px;font-size:13px;font-weight:500;transition:all 0.15s}
+  .btn-connect{background:var(--accent);color:#fff;border:none}
+  .btn-connect:hover{box-shadow:0 0 12px rgba(113,221,188,0.4)}
+  .btn-topup{background:transparent;color:var(--dim);border:1px solid var(--line-2)}
+  .btn-topup:hover{color:var(--ink);border-color:var(--accent)}
+  .connected{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--panel);border-radius:999px;border:1px solid var(--line-2)}
+  .connected .address{font-family:var(--mono);font-size:12px;letter-spacing:-0.01em;color:var(--dim)}
+  .disconnect-btn{background:transparent;color:var(--bid);border:1px solid transparent;padding:4px 8px;font-size:12px;cursor:pointer}
+  .disconnect-btn:hover{color:var(--ink);border-color:var(--bid)}
+  .hidden{display:none !important}
 
   .banner{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:6px 20px;background:var(--panel);
     border-bottom:1px solid var(--line);font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden}
@@ -168,6 +216,64 @@
   table.grid th:first-child,table.grid td:first-child{text-align:left}
   table.grid td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--rule);font-family:var(--mono);
     font-variant-numeric:tabular-nums;background:var(--panel)}
+
+  /* Enhanced portfolio table */
+  #pf-table tbody tr:hover {
+    background: var(--row-hi);
+    transition: background 0.15s ease;
+  }
+  #pf-table tbody tr[data-hold] {
+    background: linear-gradient(90deg, rgba(113,221,188,0.08) 0%, transparent 100%);
+    border-left: 2px solid var(--accent);
+  }
+  #pf-table .pnl.pos { color: var(--ask); font-weight: 600; }
+  #pf-table .pnl.neg { color: var(--bid); font-weight: 600; }
+  #pf-table .held-ticket { color: var(--warn); font-style: italic; }
+
+  /* Card-style highlights for main panels */
+  .portfolio-card {
+    background: var(--gradient-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .portfolio-card .card-header {
+    background: var(--raised);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .portfolio-card .card-body {
+    padding: 8px;
+  }
+
+  /* Highlight active series in ladder */
+  .series-active {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  /* Better feedback for buttons */
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Glow effect for key metrics */
+  .metric-highlight {
+    text-shadow: 0 0 8px rgba(113,221,188,0.3);
+  }
+  .pos.metric-highlight {
+    text-shadow: 0 0 8px rgba(68,162,130,0.3);
+  }
+  .neg.metric-highlight {
+    text-shadow: 0 0 8px rgba(229,86,111,0.3);
+  }
+
   .empty{padding:28px 16px;text-align:center;color:var(--dim);font-size:13px}
 
   .ticket{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;
@@ -302,6 +408,17 @@
     .bottom .tabs{padding:4px 20px 0}
     .expiries{padding:8px 20px 0}
   }
+  @media (max-width:480px){
+    .topbar{padding:10px 14px;gap:12px}
+    .topbar .grow{display:none}
+    .network{margin-left:auto}
+    .nav{order:3;width:100%;overflow-x:auto;gap:0}
+    .nav button{padding:6px 9px}
+    .wallet-area{margin-left:auto}
+    .topbar .index{display:none !important}
+    .connect{padding:6px 9px;font-size:12px}
+    .iconbtn{display:none}
+  }
   @media (max-width:768px){
     body{overflow:auto}
     .app.page.on{grid-template-columns:minmax(0,1fr);overflow:visible}
@@ -321,7 +438,8 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="mark"><i></i><i></i></span>bounded options</div>
+  <div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i></span><span class="logo">Optionality</span></div>
+  <div class="network" aria-label="NEAR local sandbox"><span>NEAR</span>Sandbox</div>
   <nav class="nav">
     <button data-page="trade" aria-selected="true">Options</button>
     <button data-page="positions">Positions</button>
@@ -342,12 +460,14 @@
     <span class="px num" data-px>—</span>
     <span class="chg num" data-chg></span>
   </div>
-  <button class="connect" id="wallet">No wallet · simulated</button>
-  <button class="connect" id="topup" title="Mint the demo account back up to 5,000,000 USDT">Top up</button>
-  <button class="iconbtn" id="bell">Feed</button>
+  <div class="wallet-area" id="wallet-container">
+    <button class="connect" id="wallet" title="View your sandbox account and balances">Demo account</button>
+    <button class="connect" id="topup" title="Top up the sandbox account">Top up</button>
+  </div>
+  <button class="iconbtn" id="bell" aria-label="Show market feed" title="Market feed">↗</button>
 </header>
 
-<div class="banner" id="banner">connecting to Binance, Coinbase and Bybit…</div>
+<div class="banner" id="banner"><span class="ok">Optionality · NEAR local sandbox · Onchain order book + pooled liquidity</span></div>
 <div class="tape" id="tape"></div>
 
 <main class="app page on" id="page-trade">
@@ -408,27 +528,27 @@
       <button class="sell" data-dir="sell">Sell to Open</button>
     </div>
     <div class="field">
-      <label>Order Type</label>
+      <label for="order-type">Order Type</label>
       <select id="order-type"><option value="limit">Limit</option><option value="market">Market</option><option value="fok">Fill or kill</option></select>
     </div>
     <div class="field">
-      <label>Limit Price</label>
+      <label for="price">Limit Price</label>
       <input id="price" inputmode="decimal" value="0.00">
       <div class="hint" id="price-hint">—</div>
     </div>
     <div class="field">
-      <label>Amount (contracts)</label>
+      <label for="amount">Amount (contracts)</label>
       <input id="amount" inputmode="numeric" value="1">
     </div>
     <div class="field">
-      <label>Time In Force</label>
+      <label for="tif">Time In Force</label>
       <div class="row">
         <select id="tif"><option value="gtc">GTC</option><option value="expiry">Until expiry</option></select>
-        <select id="tif2" style="width:88px"><option>24H</option><option>Expiry</option></select>
+        <select id="tif2" aria-label="Duration" style="width:88px"><option>24H</option><option>Expiry</option></select>
       </div>
     </div>
-    <div class="adv"><span>Advanced · Post Only</span><span class="toggle" id="post-only" role="button" aria-pressed="false"></span></div>
-    <div class="adv"><span>Hold to expiry · no fee</span><span class="toggle" id="hold" role="button" aria-pressed="false"></span></div>
+    <div class="adv"><span>Advanced · Post Only</span><span class="toggle" id="post-only" role="button" aria-pressed="false" aria-label="Post only" tabindex="0"></span></div>
+    <div class="adv"><span>Hold to expiry · no fee</span><span class="toggle" id="hold" role="button" aria-pressed="false" aria-label="Hold to expiry, no fee" tabindex="0"></span></div>
     <button class="cta" id="cta" disabled>Select a strike</button>
     <div class="sum">
       <div class="srow"><span>Margin Required</span><b id="k-margin">$0.00</b></div>
@@ -553,7 +673,7 @@
             </tbody>
           </table>
           <div class="field">
-            <label>Amount (USDT)</label>
+            <label for="v-amount">Amount (USDT)</label>
             <input id="v-amount" inputmode="decimal" value="1000">
           </div>
           <div class="row">
@@ -580,7 +700,7 @@
             <button class="cta" id="v-redeem" style="flex:1;background:transparent;color:var(--ink);border:1px solid var(--line-2)">Redeem shares</button>
           </div>
           <div class="field">
-            <label>Shares to redeem</label>
+            <label for="v-shares-in">Shares to redeem</label>
             <input id="v-shares-in" inputmode="decimal" value="0">
           </div>
           <div class="note" id="v-lp-note"></div>
@@ -693,7 +813,7 @@
   <span id="s-custody">custody —</span>
   <span id="s-page">options</span>
   <span id="s-series">—</span>
-  <span id="s-toast"></span>
+  <span id="s-toast" role="status" aria-live="polite"></span>
   <div class="grow"></div>
   <span id="s-build">prototype</span>
 </footer>
@@ -1333,7 +1453,7 @@ function renderRail(row, premium) {
         <div>Break Even<b>${usd(breakEven)}</b></div>
         <div>Max Profit<b class="pos">${usd(maxProfit)}</b></div>
       </div>
-      <canvas class="payoff" id="payoff"></canvas>
+      <canvas class="payoff" id="payoff" role="img" aria-label="Payoff at expiry against spot"></canvas>
       <div class="dim" style="font-size:12px;margin-top:6px">${contracts} contract${contracts > 1 ? "s" : ""} · payoff at expiry · spot marker is live</div>`;
     drawPayoff(low, high, cost);
   } else if (app.rtab === "greeks") {
@@ -1748,7 +1868,7 @@ function renderBottom() {
     }
     host.innerHTML = `
       <div class="dim" style="margin-bottom:6px">implied vol vs strike · ${view.asset}${view.spot ? ` · index ${view.spot.toFixed(2)}` : ""} · the engine's smile at ${(view.atmVol * 100).toFixed(0)}% at the money · one σ_atm for every tenor</div>
-      <canvas class="sess-chart" id="smile-chart" style="height:104px"></canvas>
+      <canvas class="sess-chart" id="smile-chart" role="img" aria-label="Implied volatility by strike" style="height:104px"></canvas>
       <div class="dim" id="smile-legend" style="margin-top:6px">${view.curves
         .map((curve, index) => `<span style="color:${SMILE_COLOURS[index % SMILE_COLOURS.length]}">■</span> ${curve.label} <span class="dim">(${(curve.years * 365 * 24).toFixed(0)}h)</span>`)
         .join(" · ")}</div>`;
@@ -1823,6 +1943,7 @@ function syncControls() {
   document.querySelectorAll("#rtabs [data-rtab]").forEach((tab) =>
     tab.setAttribute("aria-selected", String(tab.dataset.rtab === app.rtab)));
   $("post-only").setAttribute("aria-pressed", String(app.postOnly));
+  $("hold").setAttribute("aria-pressed", String(app.hold));
 }
 
 function ensureSelection() {
@@ -2325,8 +2446,15 @@ $("v-withdraw").addEventListener("click", () => fund("withdraw", Number($("v-amo
 $("v-enter").addEventListener("click", () => fund("pool-deposit", Number($("v-amount").value), "amount"));
 $("v-redeem").addEventListener("click", () => fund("pool-withdraw", Number($("v-shares-in").value), "shares"));
 $("wallet").addEventListener("click", () => setPage("vault"));
+
 $("expire").addEventListener("click", () => act("expire"));
 $("settle").addEventListener("click", () => act("settle"));
+
+// Helper: show status in banner
+function showBanner(html) {
+  const banner = document.getElementById("banner");
+  if (banner) banner.innerHTML = html;
+}
 
 window.addEventListener("error", (event) => {
   const banner = document.getElementById("banner");

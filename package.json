@@ -6,16 +6,25 @@
   "scripts": {
     "test": "bash scripts/test.sh",
     "e2e": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e",
-    "e2e:settle": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e --settle"
+    "e2e:settle": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e --settle",
+    "e2e:suite": "node sim/suite.mts --url http://127.0.0.1:8790 --out evidence/suite",
+    "video:render": "ts-node render-video.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "near-api-js": "^4.0.4"
+    "@remotion/cli": "^4.0.540",
+    "near-api-js": "^4.0.4",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "playwright-core": "^1.64.1"
+    "@types/node": "^26.6.6",
+    "@types/react": "^18.3.31",
+    "playwright-core": "^1.64.1",
+    "remotion": "^4.0.539",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
   }
 }
