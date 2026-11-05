@@ -437,6 +437,7 @@
 </style>
 <link rel="stylesheet" href="/wallet.css">
 <script defer src="/wallet.js"></script>
+<script defer src="/positions-chart.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -445,6 +446,7 @@
   <nav class="nav">
     <button data-page="trade" aria-selected="true">Options</button>
     <button data-page="positions">Positions</button>
+    <button data-page="chart">Chart</button>
     <button data-page="stats">Stats</button>
     <button data-page="vault">Vault</button>
     <button data-page="fees">Fees</button>
@@ -601,6 +603,11 @@
         </table>
       </section>
     </div>
+  </main>
+
+  <main class="page" id="page-chart">
+    <div class="page-head"><h1>Positions across time</h1><p>Live index and expiry walls. Select a spread to see its quote and place an order.</p></div>
+    <div class="page-body"><div id="positions-chart"></div></div>
   </main>
 
   <main class="page" id="page-stats">
@@ -903,7 +910,8 @@ function startStream() {
     renderTape();
     renderStatus();
     if (app.page === "stats") renderStats();
-    if (app.page === "positions") renderPositions();
+    if (app.page === "chart") renderChart();
+  if (app.page === "positions") renderPositions();
   };
   source.onerror = () => {
     // The browser reconnects on its own; the slow poll decides whether the
@@ -1983,14 +1991,24 @@ function compact(value) {
   return `$${value.toFixed(0)}`;
 }
 
+function renderChart() {
+  window.optionalityChart?.update({ state: app.state, asset: app.asset });
+}
+window.addEventListener("optionality-chart-asset", (event) => {
+  app.asset = event.detail; app.expiries = []; app.expiryIndex = 0; app.state = null; app.strike = null;
+  startStream(); poll();
+});
+window.addEventListener("optionality-chart-ready", renderChart);
+
 function setPage(page) {
   app.page = page;
   document.querySelectorAll("[data-page]").forEach((button) =>
     button.setAttribute("aria-selected", String(button.dataset.page === page)));
-  for (const id of ["trade", "positions", "stats", "vault", "fees"]) {
+  for (const id of ["trade", "positions", "chart", "stats", "vault", "fees"]) {
     document.getElementById(`page-${id}`).classList.toggle("on", id === page);
   }
   $("s-page").textContent = page === "trade" ? "options" : page;
+  if (page === "chart") renderChart();
   if (page === "positions") renderPositions();
   if (page === "stats") renderStats();
   if (page === "vault") renderVault();
@@ -2332,6 +2350,7 @@ function renderAll() {
   renderStatus();
   syncControls();
   if (app.page === "stats") renderStats();
+  if (app.page === "chart") renderChart();
   if (app.page === "positions") renderPositions();
   if (app.page === "vault") renderVault();
   if (app.page === "fees") renderFees();

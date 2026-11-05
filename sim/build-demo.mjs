@@ -33,3 +33,5 @@ for (const file of ["geist-latin.woff2", "geist-mono-latin.woff2", "OFL.txt"]) {
 console.log(`wrote ${target} (${(template.length / 1024).toFixed(1)} KiB) · served by the gateway at /`);
 
 await build({ entryPoints: [join(here, "../api/src/wallet.ts")], bundle: true, outfile: join(here, "../demo/wallet.js"), platform: "browser", format: "iife", target: "es2022", minify: true });
+
+await build({ entryPoints: [join(here, "../api/src/positions-chart.ts")], bundle: true, outfile: join(here, "../demo/positions-chart.js"), platform: "browser", format: "iife", target: "es2022", minify: true });
