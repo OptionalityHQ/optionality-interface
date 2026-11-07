@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#060807">
+<title>Optionality — Risk, Bounded</title>
+<meta name="description" content="A pool-led options market on NEAR. Choose a call or put spread, review the quote, and know your maximum loss before you confirm.">
+<style>
+@font-face{font-family:Geist;src:url('/fonts/geist-latin.woff2') format('woff2');font-weight:400 700;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url('/fonts/geist-mono-latin.woff2') format('woff2');font-weight:400 600;font-display:swap}
+
+:root{
+  color-scheme:dark;
+  --ground:#060807;
+  --surface:#0c0e0d;
+  --ink:#f3efe6;
+  --muted:rgba(243,239,230,.72);
+  --quiet:rgba(243,239,230,.52);
+  --line:rgba(255,255,255,.09);
+  --line-bright:rgba(255,255,255,.18);
+  --lime:#c6f24e;
+  --lime-dim:rgba(198,242,78,.14);
+  --loss:#e5484d;
+  --gutter:clamp(20px,4vw,64px);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:90px}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font:15px/1.65 Geist,system-ui,sans-serif;
+  overflow-x:clip;
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+  position:relative;
+}
+
+/* Background ambient motion: drifting atmospheric glass orbs */
+.ambient-bg{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  overflow:hidden;
+}
+.ambient-orb{
+  position:absolute;
+  border-radius:50%;
+  filter:blur(110px);
+  opacity:0.38;
+  mix-blend-mode:screen;
+  will-change:transform;
+}
+.orb-1{
+  width:640px;height:640px;
+  background:radial-gradient(circle,rgba(198,242,78,0.18) 0%,rgba(198,242,78,0) 70%);
+  top:-120px;left:15%;
+  animation:drift-one 28s ease-in-out infinite alternate;
+}
+.orb-2{
+  width:580px;height:580px;
+  background:radial-gradient(circle,rgba(68,162,130,0.15) 0%,rgba(68,162,130,0) 70%);
+  top:45%;right:-100px;
+  animation:drift-two 34s ease-in-out infinite alternate;
+}
+.orb-3{
+  width:720px;height:720px;
+  background:radial-gradient(circle,rgba(90,162,255,0.08) 0%,rgba(90,162,255,0) 70%);
+  bottom:-150px;left:-100px;
+  animation:drift-one 38s ease-in-out infinite alternate-reverse;
+}
+@keyframes drift-one{
+  0%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(60px,80px) scale(1.08)}
+  100%{transform:translate(-50px,130px) scale(0.95)}
+}
+@keyframes drift-two{
+  0%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(-80px,-60px) scale(1.12)}
+  100%{transform:translate(40px,90px) scale(0.92)}
+}
+
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+img,video,svg{display:block;max-width:100%}
+h1,h2,h3{font-weight:400;text-wrap:balance}
+p{text-wrap:pretty}
+a:focus-visible,summary:focus-visible,video:focus-visible,button:focus-visible{
+  outline:2px solid var(--lime);outline-offset:4px;
+}
+.container{width:min(calc(100% - var(--gutter)*2),1240px);margin-inline:auto;position:relative;z-index:1}
+.eyebrow{font:500 11px/1.5 'Geist Mono',monospace;letter-spacing:.15em;text-transform:uppercase;color:var(--quiet)}
+
+/* Liquid glass utility classes */
+.liquid-glass{
+  position:relative;
+  isolation:isolate;
+  background-color:rgba(14, 17, 16, 0.68);
+  -webkit-backdrop-filter:blur(20px) saturate(130%);
+  backdrop-filter:blur(20px) saturate(130%);
+  border:1px solid var(--line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 32px rgba(0,0,0,.35);
+}
+.liquid-glass::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  padding:1px;
+  pointer-events:none;
+  z-index:1;
+  background:linear-gradient(180deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.08) 25%,rgba(255,255,255,0) 60%,rgba(255,255,255,.1) 100%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  mask-composite:exclude;
+}
+.liquid-glass--panel{
+  background-color:rgba(12, 15, 14, 0.72);
+}
+
+/* Header & Navigation */
+.header{position:absolute;top:0;width:100%;z-index:30;padding:22px 0}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:10px 16px 10px 22px;border-radius:999px}
+.brand{display:flex;align-items:center;gap:11px;font-size:18px;font-weight:600;letter-spacing:-.035em}
+.brand svg{width:28px;height:28px}
+.nav-links{display:flex;gap:26px;font-size:13px;color:var(--muted)}
+.nav-links a{transition:color .15s}
+.nav-links a:hover{color:var(--ink)}
+.nav-app{
+  padding:9px 18px;
+  border:1px solid var(--line-bright);
+  border-radius:999px;
+  font-size:13px;
+  font-weight:500;
+  transition:all .15s;
+}
+.nav-app:hover{border-color:var(--lime);color:var(--lime)}
+
+/* Hero Section */
+.hero{
+  position:relative;
+  min-height:94svh;
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  padding:150px 0 110px;
+}
+.hero-media{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  animation:drift 18s ease-in-out infinite alternate;
+}
+.hero-media video,.hero-media img{
+  width:100%;height:100%;
+  object-fit:cover;
+  object-position:50% 42%;
+  filter:grayscale(1) brightness(0.65);
+  opacity:.45;
+}
+.hero-media::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,rgba(6,8,7,.95),rgba(6,8,7,.65) 60%,rgba(6,8,7,.3)),
+    linear-gradient(0deg,var(--ground) 5%,transparent 45%);
+}
+.hero-content{position:relative;z-index:2;max-width:740px}
+.live-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 12px;
+  border-radius:999px;
+  font:500 11px/1 'Geist Mono',monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  background:rgba(198,242,78,.08);
+  border:1px solid rgba(198,242,78,.25);
+  color:var(--lime);
+  margin-bottom:20px;
+}
+.live-dot{
+  width:6px;height:6px;
+  background:var(--lime);
+  border-radius:50%;
+  box-shadow:0 0 12px var(--lime);
+  animation:pulse 2s infinite ease-in-out;
+}
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.4;transform:scale(0.85)}
+}
+h1{
+  font:400 clamp(54px,7.5vw,108px)/1.04 Georgia,serif;
+  letter-spacing:-.055em;
+  margin-bottom:24px;
+}
+h1 em{font-style:italic;font-weight:400;color:var(--lime)}
+.hero-lead{
+  font-size:clamp(16px,1.4vw,19px);
+  color:var(--muted);
+  max-width:48ch;
+  line-height:1.7;
+}
+.actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:32px}
+.button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  padding:13px 22px;
+  border-radius:999px;
+  font-size:14px;
+  font-weight:550;
+  transition:all .15s;
+}
+.button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6}
+.button-primary{background:var(--lime);color:#0a0d06}
+.button-primary:hover{background:#d8fb6a;box-shadow:0 0 20px rgba(198,242,78,.4)}
+.button-secondary{border:1px solid var(--line-bright);color:var(--ink)}
+.button-secondary:hover{border-color:var(--lime);color:var(--lime)}
+.hero-note{font-size:12px;color:var(--quiet);margin-top:20px}
+.hero-bottom{position:absolute;bottom:28px;width:100%;z-index:2}
+.hero-bottom .container{display:flex;justify-content:space-between;font:11px 'Geist Mono',monospace;color:var(--quiet)}
+
+/* Core Principles Strip */
+.principles{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  border-block:1px solid var(--line);
+  margin-top:-1px;
+}
+.principle{padding:26px 20px 26px 0}
+.principle+.principle{padding-left:20px;border-left:1px solid var(--line)}
+.principle strong{display:block;font-size:14.5px;font-weight:500;margin-bottom:4px;color:var(--ink)}
+.principle span{font-size:12.5px;color:var(--quiet)}
+
+/* Sections */
+.section{padding-block:clamp(75px,8vw,130px)}
+.section-heading{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  align-items:end;
+  gap:50px;
+  margin-bottom:40px;
+}
+.section h2{
+  font:400 clamp(36px,4.5vw,64px)/1.1 Georgia,serif;
+  letter-spacing:-.04em;
+  margin-top:14px;
+}
+.section-heading p{max-width:46ch;color:var(--muted);font-size:15px;line-height:1.7}
+
+/* Launch Film Section */
+.film-frame{border-radius:24px;overflow:hidden;padding:8px}
+.film-frame video{width:100%;aspect-ratio:16/9;background:#000;border-radius:18px}
+.film-meta{display:flex;justify-content:space-between;gap:20px;margin-top:16px;color:var(--quiet);font-size:12px}
+.film-meta a{text-decoration:underline;text-underline-offset:4px}
+
+/* Product & Interactive Chart Showcase */
+.product-layout{display:grid;grid-template-columns:1.45fr 1fr;gap:54px;align-items:center}
+.product-screen{padding:22px;border-radius:22px;overflow:hidden}
+.screen-header{display:flex;justify-content:space-between;gap:15px;font:11px 'Geist Mono',monospace;color:var(--quiet)}
+.screen-header strong{font-size:14px;color:var(--ink);font-weight:500}
+.screen-chart{width:100%;height:auto;margin-top:16px}
+.screen-footer{
+  display:flex;gap:16px;flex-wrap:wrap;
+  border-top:1px solid var(--line);
+  padding-top:16px;
+  color:var(--quiet);
+  font:11px 'Geist Mono',monospace;
+}
+.screen-footer b{font-weight:500;color:var(--lime)}
+.feature-copy h2{font-size:clamp(34px,3.8vw,54px)}
+.feature-copy p{margin-top:18px;color:var(--muted);line-height:1.7}
+.text-link{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-top:24px;
+  border-bottom:1px solid rgba(198,242,78,.4);
+  font-size:14px;
+  color:var(--lime);
+  padding-bottom:3px;
+  transition:border-color .15s;
+}
+.text-link:hover{border-color:var(--lime)}
+.caption{font-size:11px;color:var(--quiet);margin-top:14px}
+
+.mechanics{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:50px}
+.mechanic{border-top:1px solid var(--line);padding-top:24px}
+.number{font:12px 'Geist Mono',monospace;color:var(--quiet)}
+.mechanic h3{font-size:20px;font-weight:500;line-height:1.3;letter-spacing:-.02em;margin:16px 0 10px}
+.mechanic p{font-size:13.5px;color:var(--muted);max-width:36ch;line-height:1.6}
+
+/* Historical Documentary Gallery: From Pits to Screens to Code */
+.history-section{padding-block:clamp(60px,7vw,110px)}
+.history-header{text-align:center;max-width:760px;margin:0 auto 48px}
+.history-header h2{font:400 clamp(34px,4.4vw,58px)/1.12 Georgia,serif;letter-spacing:-.04em;margin-top:12px}
+.history-header p{margin-top:16px;color:var(--muted);font-size:15px;line-height:1.7}
+.gallery-grid{
+  display:grid;
+  grid-template-columns:repeat(12,1fr);
+  gap:20px;
+}
+.gallery-card{
+  border-radius:20px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  transition:transform .2s ease;
+}
+.gallery-card:hover{transform:translateY(-3px)}
+.card-wide{grid-column:span 7}
+.card-narrow{grid-column:span 5}
+.card-third{grid-column:span 4}
+.gallery-card img{
+  width:100%;
+  height:240px;
+  object-fit:cover;
+  filter:grayscale(1) contrast(1.1);
+  transition:filter .3s ease;
+}
+.gallery-card:hover img{filter:grayscale(0.5) contrast(1.15)}
+.gallery-card-body{
+  padding:20px 22px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex:1;
+}
+.gallery-card .tag{
+  font:500 10px 'Geist Mono',monospace;
+  color:var(--lime);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.gallery-card h3{font-size:18px;font-weight:500;letter-spacing:-.02em}
+.gallery-card p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* Settlement Committee */
+.settlement{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.source-list{border-radius:22px;padding:8px 28px}
+.source-row{display:flex;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid var(--line)}
+.source-row:last-child{border:0}
+.source-row span{font-size:13px;color:var(--quiet)}
+.source-row strong{font-weight:500}
+.settlement p{color:var(--muted);margin-top:20px;line-height:1.7}
+.source-status{font:11px/1.7 'Geist Mono',monospace;color:var(--quiet);margin-top:16px}
+
+/* Roadmap */
+.roadmap{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.roadmap-card{border-radius:22px;padding:32px}
+.roadmap-card h3{font:400 32px/1.15 Georgia,serif;letter-spacing:-.03em;margin:22px 0 14px}
+.roadmap-card p{color:var(--muted);font-size:14px;line-height:1.65}
+.status-pill{
+  font:10px 'Geist Mono',monospace;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  display:inline-block;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:5px 11px;
+  color:var(--quiet);
+}
+
+/* Redone Liquid Glass FAQ */
+.faq-section{padding-block:clamp(70px,8vw,120px)}
+.faq-header{max-width:680px;margin-bottom:34px}
+.faq-header h2{font:400 clamp(36px,4.5vw,58px)/1.12 Georgia,serif;letter-spacing:-.04em;margin-top:12px}
+.faq-header p{margin-top:16px;color:var(--muted);font-size:15px;line-height:1.7}
+
+.faq-categories{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:28px;
+}
+.faq-cat-btn{
+  padding:7px 15px;
+  border-radius:999px;
+  font-size:12.5px;
+  font-weight:500;
+  color:var(--quiet);
+  background:rgba(255,255,255,.02);
+  border:1px solid var(--line);
+  transition:all .15s;
+}
+.faq-cat-btn:hover{color:var(--ink);border-color:var(--line-bright)}
+.faq-cat-btn.active{
+  color:#060807;
+  background:var(--lime);
+  border-color:var(--lime);
+  font-weight:600;
+}
+
+.faq-container{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.faq-card{
+  border-radius:16px;
+  transition:all .2s ease;
+  overflow:hidden;
+}
+.faq-card[open]{
+  border-color:rgba(198,242,78,.3);
+  background-color:rgba(198,242,78,.025);
+}
+.faq-summary{
+  list-style:none;
+  display:grid;
+  grid-template-columns:36px 1fr 24px;
+  align-items:center;
+  gap:16px;
+  padding:22px 24px;
+  cursor:pointer;
+  font-size:16px;
+  font-weight:500;
+  user-select:none;
+  transition:color .15s;
+}
+.faq-summary::-webkit-details-marker{display:none}
+.faq-summary:hover{color:var(--lime)}
+.faq-num{
+  font:500 11px 'Geist Mono',monospace;
+  color:var(--quiet);
+  padding:2px 6px;
+  border-radius:4px;
+  background:rgba(255,255,255,.03);
+  text-align:center;
+}
+.faq-card[open] .faq-num{
+  color:var(--lime);
+  background:rgba(198,242,78,.1);
+}
+.faq-toggle-icon{
+  width:20px;height:20px;
+  display:grid;place-items:center;
+  color:var(--quiet);
+  transition:transform .2s ease;
+}
+.faq-card[open] .faq-toggle-icon{
+  transform:rotate(45deg);
+  color:var(--lime);
+}
+.faq-body{
+  padding:0 24px 24px 76px;
+  color:var(--muted);
+  font-size:14.5px;
+  line-height:1.75;
+  max-width:74ch;
+}
+.faq-body p+p{margin-top:12px}
+.faq-tag-pill{
+  display:inline-block;
+  font:500 10px 'Geist Mono',monospace;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  padding:2px 7px;
+  border-radius:4px;
+  background:rgba(255,255,255,.05);
+  color:var(--quiet);
+  margin-bottom:8px;
+}
+
+/* Closing CTA */
+.closing{text-align:center;border-top:1px solid var(--line)}
+.closing h2{max-width:16ch;margin:16px auto 26px}
+.closing p{color:var(--quiet);font-size:13px;margin-top:18px}
+
+/* Footer */
+.footer{padding:30px 0 40px;border-top:1px solid var(--line)}
+.footer-row{display:flex;gap:24px;justify-content:space-between;align-items:center;color:var(--quiet);font-size:12px}
+.footer-links{display:flex;flex-wrap:wrap;gap:22px}
+.ghost-word{
+  font:400 clamp(54px,14vw,180px)/1.1 Georgia,serif;
+  letter-spacing:-.07em;
+  color:rgba(243,239,230,.035);
+  margin-top:36px;
+  text-align:center;
+}
+
+@keyframes drift{
+  from{transform:scale(1.04) translateY(0)}
+  to{transform:scale(1.08) translateY(-1.5%)}
+}
+.js .reveal{
+  opacity:0;
+  transform:translateY(20px);
+  transition:opacity .8s ease,transform .8s cubic-bezier(.22,1,.36,1);
+}
+.js .reveal.visible{opacity:1;transform:none}
+.motion-paused *{animation-play-state:paused!important}
+
+/* Leaderboard Section */
+.leaderboard-panel{border-radius:24px;padding:12px;overflow:hidden;margin-top:24px}
+.leaderboard-table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}
+.leaderboard-table th{font:500 11px/1.5 'Geist Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--quiet);padding:14px 18px;border-bottom:1px solid var(--line)}
+.leaderboard-table td{padding:18px;border-bottom:1px solid var(--line);vertical-align:middle}
+.leaderboard-table tr:last-child td{border-bottom:none}
+.leaderboard-table tr:hover td{background:rgba(255,255,255,.02)}
+.leader-meta{display:flex;align-items:center;gap:12px}
+.leader-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;background:var(--lime-dim);color:var(--lime);border:1px solid rgba(198,242,78,.3)}
+.leader-name{font-weight:550;color:var(--ink);display:block}
+.leader-tag{font:11px/1.4 'Geist Mono',monospace;color:var(--quiet)}
+.roi-pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font:600 12px/1 'Geist Mono',monospace;background:rgba(198,242,78,.15);color:var(--lime)}
+.badge-enclave{display:inline-flex;align-items:center;gap:6px;font:11px 'Geist Mono',monospace;color:var(--quiet);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.badge-enclave::before{content:"";width:6px;height:6px;border-radius:50%;background:#44a282}
+.btn-copy{display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;border-radius:999px;background:var(--lime);color:#0a0d06;font:600 12px/1 Geist,sans-serif;transition:all .15s}
+.btn-copy:hover{background:#d8fb6a;box-shadow:0 0 12px rgba(198,242,78,.35)}
+
+/* Copy Trading Section */
+.copy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:36px}
+.copy-card{border-radius:22px;padding:30px;display:flex;flex-direction:column;gap:16px;position:relative}
+.copy-icon{width:42px;height:42px;border-radius:10px;background:var(--lime-dim);border:1px solid rgba(198,242,78,.25);display:grid;place-items:center;color:var(--lime)}
+.copy-icon svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8}
+.copy-card h3{font-size:20px;font-weight:500;line-height:1.25}
+.copy-card p{color:var(--muted);font-size:13.5px;line-height:1.65;flex:1}
+.copy-card .meta-foot{font:11px/1.4 'Geist Mono',monospace;color:var(--quiet);border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.copy-banner{border-radius:24px;padding:36px;margin-top:32px;display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap}
+.copy-banner h3{font:400 clamp(24px,3vw,34px)/1.2 Georgia,serif}
+.copy-banner p{color:var(--muted);font-size:14px;max-width:50ch;margin-top:8px}
+
+@media(max-width:960px){
+  .section-heading,.product-layout,.settlement{gap:32px}
+  .principles{grid-template-columns:1fr 1fr}
+  .card-wide,.card-narrow,.card-third{grid-column:span 6}
+  .copy-grid{grid-template-columns:1fr}
+  .nav-links{gap:16px}
+}
+@media(max-width:700px){
+  .header{padding:16px 0}
+  .nav{padding:8px 12px 8px 16px}
+  .brand{font-size:16px}
+  .brand svg{width:24px;height:24px}
+  .nav-links{display:none}
+  .nav-app{padding:7px 12px;font-size:12px}
+  .hero{padding:130px 0 100px}
+  h1{font-size:clamp(46px,12vw,72px);letter-spacing:-.05em}
+  .hero-bottom{display:none}
+  .section-heading,.product-layout,.settlement,.roadmap{grid-template-columns:1fr;gap:24px}
+  .gallery-grid{grid-template-columns:1fr}
+  .card-wide,.card-narrow,.card-third{grid-column:span 1}
+  .faq-summary{grid-template-columns:28px 1fr 20px;gap:12px;font-size:15px;padding:18px}
+  .faq-body{padding:0 18px 20px 58px;font-size:13.5px}
+  .footer-row{flex-direction:column;align-items:start}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .js .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="ambient-bg" aria-hidden="true">
+  <div class="ambient-orb orb-1"></div>
+  <div class="ambient-orb orb-2"></div>
+  <div class="ambient-orb orb-3"></div>
+</div>
+
+<header class="header">
+  <div class="container">
+    <nav class="nav liquid-glass" aria-label="Main navigation">
+      <a class="brand" href="/" aria-label="Optionality home">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="#f3efe6" stroke-width="9"/><path d="M6 66 H36 L64 34 H94" fill="none" stroke="#c6f24e" stroke-width="9"/></svg>
+        Optionality
+      </a>
+      <div class="nav-links">
+        <a href="#product">The Market</a>
+        <a href="#leaderboard">Leaderboard</a>
+        <a href="#copy-trading">Copy Trading</a>
+        <a href="#film">The Film</a>
+        <a href="#history">Origins</a>
+        <a href="#settlement">Settlement</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <a class="nav-app" href="/app">Launch App</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <!-- Hero -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-media" aria-hidden="true">
+      <video id="hero-video" muted loop playsinline preload="none" poster="/media/chicago-poster.jpg" data-src="/media/chicago-loop.mp4" tabindex="-1">
+        <img src="/media/chicago-poster.jpg" alt="" width="1280" height="720">
+      </video>
+    </div>
+    <div class="container hero-content">
+      <div class="live-badge"><span class="live-dot"></span>Pool-Led Options on NEAR</div>
+      <h1 id="hero-title">Risk, <em>bounded.</em></h1>
+      <p class="hero-lead">Choose a call or put spread. Review the pool's quote. Know your maximum loss before you confirm — with zero liquidations and visible onchain collateral.</p>
+      <div class="actions">
+        <a class="button button-primary" href="/app">Open the App<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+        <a class="button button-secondary liquid-glass" href="#film"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg>Watch the Film</a>
+      </div>
+      <p class="hero-note">Explore the live sandbox with test tokens. No real funds needed.</p>
+    </div>
+    <div class="hero-bottom">
+      <div class="container">
+        <span>A market for what comes next.</span>
+        <span>Public rules. Visible collateral. Defined risk.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Four Principles -->
+  <div class="container principles" aria-label="The Optionality model">
+    <div class="principle"><strong>Premium is your limit</strong><span>Long vertical spreads. No liquidations.</span></div>
+    <div class="principle"><strong>The pool quotes</strong><span>Trade instantly against reserved collateral.</span></div>
+    <div class="principle"><strong>Hold or close early</strong><span>Standard exit or hold to expiry without fees.</span></div>
+    <div class="principle"><strong>Multi-oracle consensus</strong><span>Settlement requires distinct fresh sources to agree.</span></div>
+  </div>
+
+  <!-- Launch Film -->
+  <section class="section" id="film" aria-labelledby="film-title">
+    <div class="container reveal">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">The idea, in 3 minutes</p>
+          <h2 id="film-title">A promise about<br>tomorrow's price.</h2>
+        </div>
+        <p>From an Oregon wheat farmer managing harvest uncertainty to the shouting pits of Chicago, the question was always the same: What if the price moves against you? Our film follows that question from analog pits to smart contract consensus.</p>
+      </div>
+      <div class="film-frame liquid-glass liquid-glass--panel">
+        <video id="launch-film" controls playsinline preload="none" poster="/media/optionality-v13-poster.jpg" width="1920" height="1080" aria-label="Optionality introduction film">
+          <source src="/media/optionality-v13-web.mp4" type="video/mp4">
+          <track kind="captions" src="/media/optionality-v13.vtt" srclang="en" label="English">
+          <p><a href="/media/optionality-v13-web.mp4">Download the Optionality film</a></p>
+        </video>
+      </div>
+      <div class="film-meta">
+        <span>02:56 · English narration · Subtitled · Real archival photos and floor footage</span>
+        <a href="/media/credits.txt">Film & picture credits</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Product & Chart Feature -->
+  <section class="section" id="product" aria-labelledby="product-title">
+    <div class="container">
+      <div class="product-layout reveal">
+        <div>
+          <div class="product-screen liquid-glass liquid-glass--panel">
+            <div class="screen-header"><strong>ETH / USD</strong><span>Tick-by-tick + multi-tenor history</span></div>
+            <svg class="screen-chart" viewBox="0 0 620 350" role="img" aria-label="Illustrative price path with a chosen call strike and expiry line">
+              <g stroke="rgba(243,239,230,.08)" stroke-dasharray="3 7"><path d="M10 65H605M10 145H605M10 225H605M10 305H605"/></g>
+              <rect x="430" y="25" width="150" height="280" fill="rgba(198,242,78,.025)"/>
+              <path d="m10 255 20 8 18-22 19 5 18-14 22 8 20-20 15 4 22-30 18 14 23-10 20 4 19-29 21 8 19-29 21 3 17-35 21 6 22-17 18 9 21-24 20 8 18-24 18 7 19-15" fill="none" stroke="#f3efe6" stroke-width="2.5" stroke-linejoin="round"/>
+              <circle cx="430" cy="110" r="5" fill="#c6f24e"/>
+              <path d="M430 25V305" stroke="rgba(243,239,230,.3)" stroke-dasharray="4 6"/>
+              <path d="M550 25V305" stroke="rgba(198,242,78,.65)"/>
+              <path d="M10 145H605" stroke="#c6f24e" stroke-dasharray="6 5"/>
+              <g font-family="Geist Mono,monospace" font-size="12">
+                <text x="18" y="135" fill="#c6f24e">Chosen Call Strike</text>
+                <text x="430" y="330" fill="#a8aaa6" text-anchor="middle">Now</text>
+                <text x="550" y="18" fill="#c6f24e" text-anchor="middle">Expiry Wall</text>
+              </g>
+            </svg>
+            <div class="screen-footer">
+              <span>Instrument <b>ETH-2200/2250-C</b></span>
+              <span>Side <b>Call Spread</b></span>
+              <span>Max Loss <b>Entry Premium</b></span>
+            </div>
+          </div>
+          <p class="caption">Live interactive chart in the trading app. Pan, zoom, click any strike to trade.</p>
+        </div>
+        <div class="feature-copy">
+          <p class="eyebrow">Trading from the chart</p>
+          <h2 id="product-title">Every position starts<br>with a price.</h2>
+          <p>Pan & zoom across sub-second tick feeds and multi-day history on ETH and BTC. Click anywhere on the chart to inspect the spread. Your strike and live payoff preview follow every edit.</p>
+          <p>Preview any price, inspect implied volatility smiles from the Rust engine, and confirm a listed strike with instant pool liquidity.</p>
+          <a class="text-link" href="/chart">Explore the Chart Tab &rarr;</a>
+        </div>
+      </div>
+
+      <div class="mechanics reveal">
+        <article class="mechanic">
+          <span class="number">01</span>
+          <h3>The pool writes the quote.</h3>
+          <p>The vault acts as automated counterparty, quoting executable prices instantly based on real-time volatility smiles without waiting for P2P counter-orders.</p>
+        </article>
+        <article class="mechanic">
+          <span class="number">02</span>
+          <h3>Payouts locked onchain.</h3>
+          <p>The contract reserves the maximum possible payout before opening the trade. Winning tickets are 100% solvent and backed by locked token collateral.</p>
+        </article>
+        <article class="mechanic">
+          <span class="number">03</span>
+          <h3>No liquidation engine.</h3>
+          <p>Your downside is bounded at entry. Because spreads have a defined floor and cap, you can never owe margin or suffer forced cascading liquidations.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Leaderboard Section -->
+  <section class="section" id="leaderboard" aria-labelledby="leaderboard-title">
+    <div class="container reveal">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Attested Strategy Performance</p>
+          <h2 id="leaderboard-title">Strategy<br>Leaderboard</h2>
+        </div>
+        <p>Follow top option traders with mathematically verified track records. Enclave-sealed execution ensures zero wallet linkage and provable historical PnL without exposing proprietary trading signals to front-running bots.</p>
+      </div>
+
+      <div class="leaderboard-panel liquid-glass liquid-glass--panel">
+        <div style="overflow-x:auto">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank & Strategy</th>
+                <th>Asset</th>
+                <th>Style</th>
+                <th>Realized PnL</th>
+                <th>Win Rate</th>
+                <th>Subscribers</th>
+                <th>Monthly Fee</th>
+                <th>Verification</th>
+                <th style="text-align:right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="leader-meta">
+                    <span class="leader-avatar">01</span>
+                    <div>
+                      <strong class="leader-name">Delta-Neutral Put Shield</strong>
+                      <span class="leader-tag">OTM spread writing & consolation capture</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="tag">ETH</span></td>
+                <td><span class="tag">Delta-Neutral</span></td>
+                <td><span class="roi-pill">+74.4%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$18,240</span></td>
+                <td><strong>88.2%</strong> <span style="font-size:11px;color:var(--quiet)">(68 trades)</span></td>
+                <td><strong>142</strong></td>
+                <td>20 bUSD</td>
+                <td><span class="badge-enclave">SGX #20887</span></td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=trader-delta-neutral">Copy Strategy</a></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="leader-meta">
+                    <span class="leader-avatar">02</span>
+                    <div>
+                      <strong class="leader-name">ETH Volatility Harvester</strong>
+                      <span class="leader-tag">Exploits high-IV spikes on near expiries</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="tag">ETH</span></td>
+                <td><span class="tag">Income Harvesting</span></td>
+                <td><span class="roi-pill">+85.8%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$41,200</span></td>
+                <td><strong>82.5%</strong> <span style="font-size:11px;color:var(--quiet)">(114 trades)</span></td>
+                <td><strong>218</strong></td>
+                <td>25 bUSD</td>
+                <td><span class="badge-enclave">SGX #20887</span></td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=algo-eth-harvester">Copy Strategy</a></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="leader-meta">
+                    <span class="leader-avatar">03</span>
+                    <div>
+                      <strong class="leader-name">BTC Convexity Accelerator</strong>
+                      <span class="leader-tag">Low-IV wing buyer ahead of market breakouts</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="tag">BTC</span></td>
+                <td><span class="tag">Volatility Arb</span></td>
+                <td><span class="roi-pill">+143.4%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$28,400</span></td>
+                <td><strong>76.2%</strong> <span style="font-size:11px;color:var(--quiet)">(42 trades)</span></td>
+                <td><strong>89</strong></td>
+                <td>35 bUSD</td>
+                <td><span class="badge-enclave">SGX #20887</span></td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=convexity-long-vol">Copy Strategy</a></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="leader-meta">
+                    <span class="leader-avatar">04</span>
+                    <div>
+                      <strong class="leader-name">Macro Tail Risk Shield</strong>
+                      <span class="leader-tag">Long-horizon crash protection; 0 liquidations</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="tag">ALL</span></td>
+                <td><span class="tag">Tail Hedge</span></td>
+                <td><span class="roi-pill">+92.1%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$15,100</span></td>
+                <td><strong>90.6%</strong> <span style="font-size:11px;color:var(--quiet)">(53 trades)</span></td>
+                <td><strong>176</strong></td>
+                <td>15 bUSD</td>
+                <td><span class="badge-enclave">SGX #20887</span></td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=skew-arb-matrix">Copy Strategy</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Copy Trading Section -->
+  <section class="section" id="copy-trading" aria-labelledby="copy-title">
+    <div class="container reveal">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Confidential Execution</p>
+          <h2 id="copy-title">Private Copy Trading.<br>Zero Front-Running.</h2>
+        </div>
+        <p>Public copy trading is fundamentally flawed: mempool bots front-run follower orders and degrade fill prices. Optionality runs strategy logic and follower replication atomically inside OutLayer Intel SGX/TDX hardware enclaves.</p>
+      </div>
+
+      <div class="copy-grid">
+        <article class="copy-card liquid-glass liquid-glass--panel">
+          <div class="copy-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3>Hardware Enclave (TEE)</h3>
+          <p>Strategy orders and follower portfolios run inside OutLayer Intel SGX/TDX secure hardware. No validator, relayer, or searcher can inspect orders before block inclusion.</p>
+          <div class="meta-foot">Attestation verified on NEAR testnet (Task #20887)</div>
+        </article>
+
+        <article class="copy-card liquid-glass liquid-glass--panel">
+          <div class="copy-icon">
+            <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3>Atomic Copy Execution</h3>
+          <p>When a leader executes an options trade, follower copies execute in the exact same enclave state transition. Followers receive the identical entry mark with zero delay.</p>
+          <div class="meta-foot">Single-transition batching · 0 ms execution lag</div>
+        </article>
+
+        <article class="copy-card liquid-glass liquid-glass--panel">
+          <div class="copy-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Autonomous Stop-Loss Mandates</h3>
+          <p>Followers sign strict spending mandates defining maximum contract size, lifetime budget, and a guaranteed loss-floor haircut. If a leader exits early, your position follows automatically.</p>
+          <div class="meta-foot">Enforced loss-floor haircuts & budget caps</div>
+        </article>
+      </div>
+
+      <div class="copy-banner liquid-glass liquid-glass--panel">
+        <div>
+          <h3>Start copying verified strategies with test tokens.</h3>
+          <p>Connect your NEAR testnet wallet, configure an autonomous copy mandate, and let the enclave execute bounded option strategies on your behalf.</p>
+        </div>
+        <a class="button button-primary" href="/app#copy">Open Copy Trading<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Historical Documentary Gallery -->
+  <section class="section history-section" id="history" aria-labelledby="history-title">
+    <div class="container reveal">
+      <div class="history-header">
+        <p class="eyebrow">The Evolution of Options</p>
+        <h2 id="history-title">From 1848 Grain Pits<br>to Autonomous Consensus</h2>
+        <p>Before options were lines on glowing screens, they were legal promises written on paper to protect grain farmers from ruin. Optionality brings that core promise into verifiable onchain code.</p>
+      </div>
+
+      <div class="gallery-grid">
+        <article class="gallery-card card-wide liquid-glass liquid-glass--panel">
+          <img src="/media/trading-floor.jpg" alt="Stanley Kubrick 1949 Chicago trading pit" loading="lazy">
+          <div class="gallery-card-body">
+            <span class="tag">1949 · The Pits</span>
+            <h3>Open Outcry & Price Discovery</h3>
+            <p>Stanley Kubrick photographed the Chicago Board of Trade trading floor in 1949. Thousands of traders screamed across hexagonal pits to establish fair value. Liquidity depended entirely on who was standing in the crowd.</p>
+          </div>
+        </article>
+
+        <article class="gallery-card card-narrow liquid-glass liquid-glass--panel">
+          <img src="/media/farmer-harvest.jpg" alt="1941 Wheat Harvest in Pendleton, Oregon" loading="lazy">
+          <div class="gallery-card-body">
+            <span class="tag">1941 · The Origin</span>
+            <h3>Harvest Uncertainty</h3>
+            <p>Options began not as financial speculation, but as insurance for producers. A farmer lock-in a price floor so a bumper crop wouldn't collapse their livelihood before market day.</p>
+          </div>
+        </article>
+
+        <article class="gallery-card card-third liquid-glass liquid-glass--panel">
+          <img src="/media/cbot-lasalle.jpg" alt="LaSalle Street at Night" loading="lazy">
+          <div class="gallery-card-body">
+            <span class="tag">1848 · The Institution</span>
+            <h3>LaSalle Street at Night</h3>
+            <p>The Chicago Board of Trade standardized grain grading, warehouse receipts, and counterparty guarantees — the direct ancestors of modern clearinghouses.</p>
+          </div>
+        </article>
+
+        <article class="gallery-card card-third liquid-glass liquid-glass--panel">
+          <img src="/media/chicago-loop-street.jpg" alt="1970s Chicago State Street Loop" loading="lazy">
+          <div class="gallery-card-body">
+            <span class="tag">1973 · The Modern Era</span>
+            <h3>Standardized Listed Options</h3>
+            <p>In April 1973, the CBOE opened in a former smoker's lounge. Call options were listed on 16 stocks. Black & Scholes published their pricing formula that same year.</p>
+          </div>
+        </article>
+
+        <article class="gallery-card card-third liquid-glass liquid-glass--panel">
+          <img src="/media/screens-terminal.jpg" alt="Financial Trading Terminal" loading="lazy">
+          <div class="gallery-card-body">
+            <span class="tag">Today · Optionality</span>
+            <h3>The Autonomous Venue</h3>
+            <p>NEAR smart contracts replace the broker, clearinghouse, and margin desk. Capital is escrowed, risk is mathematically bounded, and settlement is verified by multi-oracle consensus.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Multi-Oracle Settlement -->
+  <section class="section" id="settlement" aria-labelledby="settlement-title">
+    <div class="container settlement reveal">
+      <div>
+        <p class="eyebrow">Expiry & Oracles</p>
+        <h2 id="settlement-title">One source<br>doesn't decide.</h2>
+        <p>A single oracle feed can glitch, lag, or be manipulated. Optionality runs a decentralized settlement committee with dedicated seats for Kraken, OKX, Pyth, and the venue's internal median index.</p>
+        <p>At least two distinct fresh sources must agree within the contract's tolerance. The venue index is just one vote — it cannot unilaterally settle your ticket.</p>
+      </div>
+      <div>
+        <div class="source-list liquid-glass liquid-glass--panel">
+          <div class="source-row"><strong>Venue Index</strong><span>Median of 3 CEX feeds</span></div>
+          <div class="source-row"><strong>Kraken</strong><span>Independent market feed</span></div>
+          <div class="source-row"><strong>OKX</strong><span>Independent market feed</span></div>
+          <div class="source-row"><strong>Pyth Network</strong><span>High-frequency decentralized oracle</span></div>
+        </div>
+        <p class="source-status">2 distinct fresh seats required &middot; Agreement &rarr; Onchain settlement</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Redone FAQ Section -->
+  <section class="section faq-section" id="faq" aria-labelledby="faq-title">
+    <div class="container reveal">
+      <div class="faq-header">
+        <p class="eyebrow">Frequently Asked Questions</p>
+        <h2 id="faq-title">Everything you need<br>to know about Optionality.</h2>
+        <p>From vertical spread payoff equations to pool solvency and oracle settlement rules. Clear answers directly from the technical documentation.</p>
+      </div>
+
+      <div class="faq-categories">
+        <button class="faq-cat-btn active" data-filter="all">All Questions</button>
+        <button class="faq-cat-btn" data-filter="trading">Trading & Spreads</button>
+        <button class="faq-cat-btn" data-filter="risk">Risk & Collateral</button>
+        <button class="faq-cat-btn" data-filter="settlement">Settlement & Oracles</button>
+        <button class="faq-cat-btn" data-filter="vault">Vault & Liquidity</button>
+      </div>
+
+      <div class="faq-container">
+        <!-- Q1 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="trading" open>
+          <summary class="faq-summary">
+            <span class="faq-num">01</span>
+            <span>What instruments are traded on Optionality?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Spreads</span>
+            <p>Optionality trades <strong>bounded vertical spreads</strong> (bull call spreads and bear put spreads) on ETH and BTC. Each instrument has two defined strikes [$K_L, K_H$] and a fixed expiry timestamp.</p>
+            <p>At expiry, a call spread pays <code>clamp(S − K_L, 0, K_H − K_L)</code> per contract, and a put spread pays <code>clamp(K_H − S, 0, K_H − K_L)</code>. Payouts are fully cash-settled in USDT.</p>
+          </div>
+        </details>
+
+        <!-- Q2 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="risk">
+          <summary class="faq-summary">
+            <span class="faq-num">02</span>
+            <span>Can my position be liquidated or result in negative balance?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Risk Model</span>
+            <p><strong>No.</strong> Unlike linear perpetual futures, you can never be liquidated and will never owe margin. When buying a spread, the upfront premium paid is your absolute worst-case loss.</p>
+            <p>Even if the underlying cryptocurrency crashes 80% in an hour, you will never receive a margin call or face auto-deleveraging.</p>
+          </div>
+        </details>
+
+        <!-- Q3 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="vault">
+          <summary class="faq-summary">
+            <span class="faq-num">03</span>
+            <span>How is a winning option backed and guaranteed?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Solvency</span>
+            <p>Every ticket is 100% solvent from the moment it is opened. When you trade against the liquidity pool, the smart contract calculates the maximum possible payout (<code>contracts × spread_width</code>) and <strong>locks that exact token collateral</strong> in reserve.</p>
+            <p>The pool cannot accept a trade unless it has sufficient unencumbered equity to guarantee the maximum potential winning payout.</p>
+          </div>
+        </details>
+
+        <!-- Q4 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="settlement">
+          <summary class="faq-summary">
+            <span class="faq-num">04</span>
+            <span>How does expiry settlement work and who sets the price?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Oracles</span>
+            <p>Settlement is governed by an independent 4-seat oracle committee: the venue's median index, Kraken, OKX, and Pyth Network. At expiry, signed price attestations are submitted onchain.</p>
+            <p>The contract requires at least two distinct fresh feeds to agree within tolerance. Once consensus is verified onchain, ticket payoffs are automatically unlockable.</p>
+          </div>
+        </details>
+
+        <!-- Q5 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="trading">
+          <summary class="faq-summary">
+            <span class="faq-num">05</span>
+            <span>Can I close my option position before expiry?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Execution</span>
+            <p><strong>Yes.</strong> Standard pool tickets can be closed early at any time at the pool's live exit quote (<code>pool_close</code>). Alternatively, you can post a limit order on the order book.</p>
+            <p>Traders who select the <em>"Hold to Expiry"</em> toggle enter at the pool's mid-market price with zero venue entry margin, agreeing to hold until settlement without early exit.</p>
+          </div>
+        </details>
+
+        <!-- Q6 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="vault">
+          <summary class="faq-summary">
+            <span class="faq-num">06</span>
+            <span>How do Liquidity Providers (LPs) earn in the vault?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Yield</span>
+            <p>Liquidity providers deposit USDT to back the pool's worst-case collateral. In return, the pool collects the venue entry margin on every option written, plus any unexercised collateral from losing positions.</p>
+            <p>LPs receive yield organically from options market making and flow, without token emissions or inflationary subsidies.</p>
+          </div>
+        </details>
+
+        <!-- Q7 -->
+        <details class="faq-card liquid-glass" name="faq-group" data-category="risk">
+          <summary class="faq-summary">
+            <span class="faq-num">07</span>
+            <span>Is this running on mainnet or testnet?</span>
+            <span class="faq-toggle-icon">+</span>
+          </summary>
+          <div class="faq-body">
+            <span class="faq-tag-pill">Environment</span>
+            <p>The hosted venue at <code>optionality.pro</code> runs on an isolated NEAR sandbox with simulated high-frequency market makers and real price feeds from Binance, Bybit, and Coinbase.</p>
+            <p>You can top up test tokens freely in the app and test full options trading, order queueing, and early closing without risking capital.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Closing CTA -->
+  <section class="section closing">
+    <div class="container reveal">
+      <p class="eyebrow">Start Trading Now</p>
+      <h2>A view on price.<br>A limit on risk.</h2>
+      <a class="button button-primary" href="/app">Explore the Sandbox<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+      <p>ETH and BTC &middot; Instant Pool Quotes &middot; Onchain Collateral &middot; Verified Consensus</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-row">
+      <span>Optionality &middot; Onchain bounded-options venue on NEAR</span>
+      <div class="footer-links">
+        <a href="/app">Trading App</a>
+        <a href="/app#leaderboard">Leaderboard</a>
+        <a href="/app#copy">Copy Trading</a>
+        <a href="/chart">Interactive Chart</a>
+        <a href="#film">Launch Film</a>
+        <a href="#history">Documentary</a>
+        <a href="/media/credits.txt">Media Credits</a>
+      </div>
+    </div>
+    <p class="ghost-word" aria-hidden="true">Optionality</p>
+  </div>
+</footer>
+
+<script>
+document.documentElement.classList.add('js');
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+const heroVideo = document.getElementById('hero-video');
+let heroVisible = true;
+
+function updateMotion() {
+  const paused = document.hidden || motionPreference.matches;
+  document.documentElement.classList.toggle('motion-paused', paused);
+  if (paused || !heroVisible) {
+    if (heroVideo) heroVideo.pause();
+  } else if (heroVideo) {
+    if (!heroVideo.getAttribute('src')) heroVideo.src = heroVideo.dataset.src;
+    heroVideo.play().catch(() => {});
+  }
+}
+
+document.addEventListener('visibilitychange', updateMotion);
+motionPreference.addEventListener('change', updateMotion);
+if (heroVideo) {
+  new IntersectionObserver(entries => {
+    heroVisible = entries[0].isIntersecting;
+    updateMotion();
+  }).observe(heroVideo);
+}
+updateMotion();
+
+const revealObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  }
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// Interactive FAQ Category Filtering & Single-Open Accordion
+const faqButtons = document.querySelectorAll('.faq-cat-btn');
+const faqCards = document.querySelectorAll('.faq-card');
+
+faqButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    faqButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    faqCards.forEach(card => {
+      if (filter === 'all' || card.dataset.category === filter) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+});
+
+faqCards.forEach(card => {
+  card.addEventListener('toggle', () => {
+    if (card.open) {
+      faqCards.forEach(other => {
+        if (other !== card) other.open = false;
+      });
+    }
+  });
+});
+
+const launchFilm = document.getElementById('launch-film');
+if (launchFilm && heroVideo) {
+  launchFilm.addEventListener('play', () => heroVideo.pause());
+}
+</script>
+</body>
+</html>
