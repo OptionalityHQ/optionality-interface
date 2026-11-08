@@ -17,9 +17,11 @@
   "dependencies": {
     "@defuse-protocol/one-click-sdk-typescript": "0.1.26",
     "@near-wallet-selector/core": "10.1.4",
+    "@near-wallet-selector/meteor-wallet": "10.1.4",
     "@near-wallet-selector/modal-ui": "10.1.4",
     "@near-wallet-selector/my-near-wallet": "10.1.4",
     "@remotion/cli": "^4.0.540",
+    "buffer": "^6.0.3",
     "near-api-js": "^4.0.4",
     "util": "0.12.5",
     "zod": "^4.6.7"

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#060807">
-<title>Optionality — Risk, Bounded</title>
-<meta name="description" content="A pool-led options market on NEAR. Choose a call or put spread, review the quote, and know your maximum loss before you confirm.">
+<title>Optionality — Options Without Liquidation</title>
+<meta name="description" content="No-slippage, zero-liquidation options on NEAR. Trade against an automated LP pool with 100% locked payouts, any-time expiry, and multi-oracle consensus.">
 <style>
 @font-face{font-family:Geist;src:url('/fonts/geist-latin.woff2') format('woff2');font-weight:400 700;font-display:swap}
 @font-face{font-family:'Geist Mono';src:url('/fonts/geist-mono-latin.woff2') format('woff2');font-weight:400 600;font-display:swap}
@@ -515,6 +515,17 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
 .badge-enclave::before{content:"";width:6px;height:6px;border-radius:50%;background:#44a282}
 .btn-copy{display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;border-radius:999px;background:var(--lime);color:#0a0d06;font:600 12px/1 Geist,sans-serif;transition:all .15s}
 .btn-copy:hover{background:#d8fb6a;box-shadow:0 0 12px rgba(198,242,78,.35)}
+.contact-icons{display:inline-flex;align-items:center;gap:8px}
+.contact-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;transition:all .15s}
+.contact-icon svg{width:14px;height:14px;fill:currentColor}
+.contact-icon.available{color:#ffffff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);box-shadow:0 0 10px rgba(255,255,255,.12)}
+.contact-icon.available:hover{background:rgba(255,255,255,.2);border-color:#ffffff}
+.contact-icon.unavailable{color:rgba(243,239,230,.2);background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);cursor:not-allowed;pointer-events:none}
+.strat-word{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font:600 11.5px/1.2 'Geist Mono',monospace;text-transform:lowercase}
+.strat-word.bull{background:rgba(68,162,130,.16);color:#5fc39c;border:1px solid rgba(68,162,130,.35)}
+.strat-word.bear{background:rgba(229,86,111,.16);color:#f08ca0;border:1px solid rgba(229,86,111,.35)}
+.strat-word.cross-bull{background:rgba(198,242,78,.15);color:#c6f24e;border:1px solid rgba(198,242,78,.35)}
+.strat-word.cross-bear{background:rgba(232,164,94,.16);color:#e8a45e;border:1px solid rgba(232,164,94,.35)}
 
 /* Copy Trading Section */
 .copy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:36px}
@@ -576,7 +587,7 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
       <div class="nav-links">
         <a href="#product">The Market</a>
         <a href="#leaderboard">Leaderboard</a>
-        <a href="#copy-trading">Copy Trading</a>
+        <a href="#my-strategies">My Strategies</a>
         <a href="#film">The Film</a>
         <a href="#history">Origins</a>
         <a href="#settlement">Settlement</a>
@@ -596,9 +607,9 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
       </video>
     </div>
     <div class="container hero-content">
-      <div class="live-badge"><span class="live-dot"></span>Pool-Led Options on NEAR</div>
-      <h1 id="hero-title">Risk, <em>bounded.</em></h1>
-      <p class="hero-lead">Choose a call or put spread. Review the pool's quote. Know your maximum loss before you confirm — with zero liquidations and visible onchain collateral.</p>
+      <div class="live-badge"><span class="live-dot"></span>No-Slippage, Zero-Liquidation Options on NEAR</div>
+      <h1 id="hero-title">Options without <em>liquidation.</em></h1>
+      <p class="hero-lead">Trade call and put spreads directly on the chart or board with no-slippage pool orders. Know your maximum loss upfront — with zero liquidations and 100% locked onchain payouts.</p>
       <div class="actions">
         <a class="button button-primary" href="/app">Open the App<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
         <a class="button button-secondary liquid-glass" href="#film"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg>Watch the Film</a>
@@ -615,8 +626,8 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
 
   <!-- Four Principles -->
   <div class="container principles" aria-label="The Optionality model">
-    <div class="principle"><strong>Premium is your limit</strong><span>Long vertical spreads. No liquidations.</span></div>
-    <div class="principle"><strong>The pool quotes</strong><span>Trade instantly against reserved collateral.</span></div>
+    <div class="principle"><strong>Premium is your limit</strong><span>Defined-risk vertical spreads. Zero liquidations.</span></div>
+    <div class="principle"><strong>No-slippage pool orders</strong><span>Trade instantly against 100% reserved collateral.</span></div>
     <div class="principle"><strong>Hold or close early</strong><span>Standard exit or hold to expiry without fees.</span></div>
     <div class="principle"><strong>Multi-oracle consensus</strong><span>Settlement requires distinct fresh sources to agree.</span></div>
   </div>
@@ -663,21 +674,21 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
               <g font-family="Geist Mono,monospace" font-size="12">
                 <text x="18" y="135" fill="#c6f24e">Chosen Call Strike</text>
                 <text x="430" y="330" fill="#a8aaa6" text-anchor="middle">Now</text>
-                <text x="550" y="18" fill="#c6f24e" text-anchor="middle">Expiry Wall</text>
+                <text x="515" y="18" fill="#c6f24e" text-anchor="middle">Expiry · 12:00 AM UTC0 (Default)</text>
               </g>
             </svg>
             <div class="screen-footer">
-              <span>Instrument <b>ETH-2200/2250-C</b></span>
-              <span>Side <b>Call Spread</b></span>
+              <span>Default Expiry <b>12:00 AM (00:00) UTC+0</b></span>
+              <span>Any-Time Expiry <b>≥ 1m Testnet · ≥ 1d Mainnet</b></span>
               <span>Max Loss <b>Entry Premium</b></span>
             </div>
           </div>
-          <p class="caption">Live interactive chart in the trading app. Pan, zoom, click any strike to trade.</p>
+          <p class="caption">Default daily expiry at 12:00 AM UTC+0, or pick any custom expiry ≥ 1 minute from entry on Testnet (≥ 1 day on Mainnet).</p>
         </div>
         <div class="feature-copy">
           <p class="eyebrow">Trading from the chart</p>
           <h2 id="product-title">Every position starts<br>with a price.</h2>
-          <p>Pan & zoom across sub-second tick feeds and multi-day history on ETH and BTC. Click anywhere on the chart to inspect the spread. Your strike and live payoff preview follow every edit.</p>
+          <p>Pan & zoom across sub-second tick feeds and multi-day history on ETH and BTC. Default option series settle at <strong>12:00 AM (00:00) UTC+0 everyday</strong>, and you can also select <strong>any-time expiry</strong> at least <strong>1 minute</strong> from entry on Testnet (at least <strong>1 day</strong> on Mainnet).</p>
           <p>Preview any price, inspect implied volatility smiles from the Rust engine, and confirm a listed strike with instant pool liquidity.</p>
           <a class="text-link" href="/chart">Explore the Chart Tab &rarr;</a>
         </div>
@@ -708,10 +719,10 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
     <div class="container reveal">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Attested Strategy Performance</p>
-          <h2 id="leaderboard-title">Strategy<br>Leaderboard</h2>
+          <p class="eyebrow">CEX-Style Top Trader Ranking</p>
+          <h2 id="leaderboard-title">Top Traders<br>Leaderboard</h2>
         </div>
-        <p>Follow top option traders with mathematically verified track records. Enclave-sealed execution ensures zero wallet linkage and provable historical PnL without exposing proprietary trading signals to front-running bots.</p>
+        <p>Follow ranked master option traders verified inside OutLayer SGX enclaves. Ranked by nickname only — wallet addresses are never exposed. Contact icons light up in bright white when available and appear in light gray when unavailable.</p>
       </div>
 
       <div class="leaderboard-panel liquid-glass liquid-glass--panel">
@@ -719,93 +730,93 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
           <table class="leaderboard-table">
             <thead>
               <tr>
-                <th>Rank & Strategy</th>
-                <th>Asset</th>
-                <th>Style</th>
-                <th>Realized PnL</th>
-                <th>Win Rate</th>
-                <th>Subscribers</th>
-                <th>Monthly Fee</th>
-                <th>Verification</th>
+                <th>Rank</th>
+                <th>Trader (Nickname)</th>
+                <th>Contact</th>
+                <th>ROI (30D)</th>
+                <th>Volume (30D)</th>
+                <th>Main Strategy</th>
+                <th>Copy Traders</th>
+                <th>Subscription</th>
                 <th style="text-align:right">Action</th>
               </tr>
             </thead>
             <tbody>
               <tr>
+                <td><span class="leader-avatar">01</span></td>
                 <td>
-                  <div class="leader-meta">
-                    <span class="leader-avatar">01</span>
-                    <div>
-                      <strong class="leader-name">Delta-Neutral Put Shield</strong>
-                      <span class="leader-tag">OTM spread writing & consolation capture</span>
-                    </div>
+                  <strong class="leader-name">KaitoVol</strong>
+                  <span class="leader-tag">ETH/BTC asymmetric gamma spreads · SGX #20887</span>
+                </td>
+                <td>
+                  <div class="contact-icons">
+                    <a class="contact-icon available" href="https://x.com/KaitoVol" target="_blank" rel="noopener" title="Verified X"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+                    <a class="contact-icon available" href="https://t.me/KaitoVol_Options" target="_blank" rel="noopener" title="Verified Telegram"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a>
                   </div>
                 </td>
-                <td><span class="tag">ETH</span></td>
-                <td><span class="tag">Delta-Neutral</span></td>
-                <td><span class="roi-pill">+74.4%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$18,240</span></td>
-                <td><strong>88.2%</strong> <span style="font-size:11px;color:var(--quiet)">(68 trades)</span></td>
-                <td><strong>142</strong></td>
-                <td>20 bUSD</td>
-                <td><span class="badge-enclave">SGX #20887</span></td>
-                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=trader-delta-neutral">Copy Strategy</a></td>
+                <td><span class="roi-pill">+184.6%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$94,280</span></td>
+                <td><strong>$4.82M</strong></td>
+                <td><span class="strat-word cross-bull">cross-bull</span></td>
+                <td><strong>312</strong> <span style="color:var(--quiet)">/ 400</span></td>
+                <td>25 USDT/mo</td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#subscribe?leader=trader-kaito">Copy</a></td>
               </tr>
               <tr>
+                <td><span class="leader-avatar">02</span></td>
                 <td>
-                  <div class="leader-meta">
-                    <span class="leader-avatar">02</span>
-                    <div>
-                      <strong class="leader-name">ETH Volatility Harvester</strong>
-                      <span class="leader-tag">Exploits high-IV spikes on near expiries</span>
-                    </div>
+                  <strong class="leader-name">VegaWhale</strong>
+                  <span class="leader-tag">Systematic ETH 12:00 AM UTC0 call spread rotator</span>
+                </td>
+                <td>
+                  <div class="contact-icons">
+                    <a class="contact-icon available" href="https://x.com/VegaWhale_NEAR" target="_blank" rel="noopener" title="Verified X"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+                    <span class="contact-icon unavailable" title="Telegram not provided"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></span>
                   </div>
                 </td>
-                <td><span class="tag">ETH</span></td>
-                <td><span class="tag">Income Harvesting</span></td>
-                <td><span class="roi-pill">+85.8%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$41,200</span></td>
-                <td><strong>82.5%</strong> <span style="font-size:11px;color:var(--quiet)">(114 trades)</span></td>
-                <td><strong>218</strong></td>
-                <td>25 bUSD</td>
-                <td><span class="badge-enclave">SGX #20887</span></td>
-                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=algo-eth-harvester">Copy Strategy</a></td>
+                <td><span class="roi-pill">+148.2%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$71,400</span></td>
+                <td><strong>$3.49M</strong></td>
+                <td><span class="strat-word bull">bull</span></td>
+                <td><strong>264</strong> <span style="color:var(--quiet)">/ 300</span></td>
+                <td>30 USDT/mo</td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#subscribe?leader=trader-vega">Copy</a></td>
               </tr>
               <tr>
+                <td><span class="leader-avatar">03</span></td>
                 <td>
-                  <div class="leader-meta">
-                    <span class="leader-avatar">03</span>
-                    <div>
-                      <strong class="leader-name">BTC Convexity Accelerator</strong>
-                      <span class="leader-tag">Low-IV wing buyer ahead of market breakouts</span>
-                    </div>
+                  <strong class="leader-name">SatoshiHedge</strong>
+                  <span class="leader-tag">Downside put-spread convexity &amp; volatility skew</span>
+                </td>
+                <td>
+                  <div class="contact-icons">
+                    <span class="contact-icon unavailable" title="X not provided"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>
+                    <a class="contact-icon available" href="https://t.me/SatoshiHedge" target="_blank" rel="noopener" title="Verified Telegram"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a>
                   </div>
                 </td>
-                <td><span class="tag">BTC</span></td>
-                <td><span class="tag">Volatility Arb</span></td>
-                <td><span class="roi-pill">+143.4%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$28,400</span></td>
-                <td><strong>76.2%</strong> <span style="font-size:11px;color:var(--quiet)">(42 trades)</span></td>
-                <td><strong>89</strong></td>
-                <td>35 bUSD</td>
-                <td><span class="badge-enclave">SGX #20887</span></td>
-                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=convexity-long-vol">Copy Strategy</a></td>
+                <td><span class="roi-pill">+126.9%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$53,890</span></td>
+                <td><strong>$2.91M</strong></td>
+                <td><span class="strat-word cross-bear">cross-bear</span></td>
+                <td><strong>198</strong> <span style="color:var(--quiet)">/ 250</span></td>
+                <td>20 USDT/mo</td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#subscribe?leader=trader-satoshi">Copy</a></td>
               </tr>
               <tr>
+                <td><span class="leader-avatar">04</span></td>
                 <td>
-                  <div class="leader-meta">
-                    <span class="leader-avatar">04</span>
-                    <div>
-                      <strong class="leader-name">Macro Tail Risk Shield</strong>
-                      <span class="leader-tag">Long-horizon crash protection; 0 liquidations</span>
-                    </div>
+                  <strong class="leader-name">GammaSniper</strong>
+                  <span class="leader-tag">Short-tenor ETH put spreads around macro prints</span>
+                </td>
+                <td>
+                  <div class="contact-icons">
+                    <span class="contact-icon unavailable" title="X not provided"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>
+                    <span class="contact-icon unavailable" title="Telegram not provided"><svg viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></span>
                   </div>
                 </td>
-                <td><span class="tag">ALL</span></td>
-                <td><span class="tag">Tail Hedge</span></td>
-                <td><span class="roi-pill">+92.1%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$15,100</span></td>
-                <td><strong>90.6%</strong> <span style="font-size:11px;color:var(--quiet)">(53 trades)</span></td>
-                <td><strong>176</strong></td>
-                <td>15 bUSD</td>
-                <td><span class="badge-enclave">SGX #20887</span></td>
-                <td style="text-align:right"><a class="btn-copy" href="/app#copy?leader=skew-arb-matrix">Copy Strategy</a></td>
+                <td><span class="roi-pill">+91.8%</span> <span style="font-size:12px;color:var(--muted);margin-left:4px">+$34,120</span></td>
+                <td><strong>$1.98M</strong></td>
+                <td><span class="strat-word bear">bear</span></td>
+                <td><strong>118</strong> <span style="color:var(--quiet)">/ 200</span></td>
+                <td>15 USDT/mo</td>
+                <td style="text-align:right"><a class="btn-copy" href="/app#subscribe?leader=trader-gamma">Copy</a></td>
               </tr>
             </tbody>
           </table>
@@ -814,15 +825,15 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
     </div>
   </section>
 
-  <!-- Copy Trading Section -->
-  <section class="section" id="copy-trading" aria-labelledby="copy-title">
+  <!-- My Strategies Section -->
+  <section class="section" id="my-strategies" aria-labelledby="copy-title">
     <div class="container reveal">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Confidential Execution</p>
-          <h2 id="copy-title">Private Copy Trading.<br>Zero Front-Running.</h2>
+          <p class="eyebrow">My Strategies · Confidential Execution</p>
+          <h2 id="copy-title">Manage Traders You Copy.<br>Zero Front-Running.</h2>
         </div>
-        <p>Public copy trading is fundamentally flawed: mempool bots front-run follower orders and degrade fill prices. Optionality runs strategy logic and follower replication atomically inside OutLayer Intel SGX/TDX hardware enclaves.</p>
+        <p>Subscribe to top traders from the Leaderboard and manage all your active copy mandates in <strong>My Strategies</strong>. Strategy orders and follower replications execute atomically inside OutLayer Intel SGX/TDX hardware enclaves.</p>
       </div>
 
       <div class="copy-grid">
@@ -856,10 +867,10 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
 
       <div class="copy-banner liquid-glass liquid-glass--panel">
         <div>
-          <h3>Start copying verified strategies with test tokens.</h3>
-          <p>Connect your NEAR testnet wallet, configure an autonomous copy mandate, and let the enclave execute bounded option strategies on your behalf.</p>
+          <h3>View your active traders in My Strategies.</h3>
+          <p>Connect your NEAR wallet, top up test USDT, subscribe to a top trader on the Leaderboard, and track every copied spread in real time.</p>
         </div>
-        <a class="button button-primary" href="/app#copy">Open Copy Trading<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+        <a class="button button-primary" href="/app#copy">Open My Strategies<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
       </div>
     </div>
   </section>
@@ -970,7 +981,7 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
           </summary>
           <div class="faq-body">
             <span class="faq-tag-pill">Spreads</span>
-            <p>Optionality trades <strong>bounded vertical spreads</strong> (bull call spreads and bear put spreads) on ETH and BTC. Each instrument has two defined strikes [$K_L, K_H$] and a fixed expiry timestamp.</p>
+            <p>Optionality trades <strong>defined-risk vertical spreads</strong> (bull call spreads and bear put spreads) on ETH and BTC. Each instrument has two defined strikes [$K_L, K_H$] and a fixed expiry timestamp.</p>
             <p>At expiry, a call spread pays <code>clamp(S − K_L, 0, K_H − K_L)</code> per contract, and a put spread pays <code>clamp(K_H − S, 0, K_H − K_L)</code>. Payouts are fully cash-settled in USDT.</p>
           </div>
         </details>
@@ -1026,7 +1037,7 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
           </summary>
           <div class="faq-body">
             <span class="faq-tag-pill">Execution</span>
-            <p><strong>Yes.</strong> Standard pool tickets can be closed early at any time at the pool's live exit quote (<code>pool_close</code>). Alternatively, you can post a limit order on the order book.</p>
+            <p><strong>Yes.</strong> Standard pool tickets can be closed early at any time at the pool's live exit quote (<code>pool_close</code>), with the early-close haircut already factored into the quote.</p>
             <p>Traders who select the <em>"Hold to Expiry"</em> toggle enter at the pool's mid-market price with zero venue entry margin, agreeing to hold until settlement without early exit.</p>
           </div>
         </details>
@@ -1054,8 +1065,8 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
           </summary>
           <div class="faq-body">
             <span class="faq-tag-pill">Environment</span>
-            <p>The hosted venue at <code>optionality.pro</code> runs on an isolated NEAR sandbox with simulated high-frequency market makers and real price feeds from Binance, Bybit, and Coinbase.</p>
-            <p>You can top up test tokens freely in the app and test full options trading, order queueing, and early closing without risking capital.</p>
+            <p>The hosted venue at <code>optionality.pro</code> runs on an isolated NEAR sandbox with automated pool pricing and real price feeds from Binance, Bybit, and Coinbase.</p>
+            <p>You can top up test tokens freely in the app and test full options trading, hold-to-expiry zero-fee entry, and early closing against the LP vault without risking capital.</p>
           </div>
         </details>
       </div>
@@ -1076,15 +1087,15 @@ h1 em{font-style:italic;font-weight:400;color:var(--lime)}
 <footer class="footer">
   <div class="container">
     <div class="footer-row">
-      <span>Optionality &middot; Onchain bounded-options venue on NEAR</span>
+      <span>Optionality &middot; No-slippage, zero-liquidation options on NEAR</span>
       <div class="footer-links">
         <a href="/app">Trading App</a>
         <a href="/app#leaderboard">Leaderboard</a>
-        <a href="/app#copy">Copy Trading</a>
+        <a href="/app#copy">My Strategies</a>
         <a href="/chart">Interactive Chart</a>
+        <a href="/app#docs">Docs &amp; Fees</a>
         <a href="#film">Launch Film</a>
         <a href="#history">Documentary</a>
-        <a href="/media/credits.txt">Media Credits</a>
       </div>
     </div>
     <p class="ghost-word" aria-hidden="true">Optionality</p>

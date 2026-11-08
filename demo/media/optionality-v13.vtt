@@ -1,0 +1,238 @@
+WEBVTT
+
+00:00:00.469 --> 00:00:03.760
+A farmer with a harvest to sell has one fear:
+
+00:00:03.750 --> 00:00:05.320
+tomorrow's price.
+
+00:00:05.310 --> 00:00:07.300
+So he wants a promise:
+
+00:00:07.290 --> 00:00:11.080
+a buyer who pays an agreed price on a set date,
+
+00:00:11.070 --> 00:00:12.800
+whatever the market does.
+
+00:00:12.790 --> 00:00:13.900
+In Chicago,
+
+00:00:13.890 --> 00:00:16.040
+those promises were written into contracts,
+
+00:00:16.030 --> 00:00:18.600
+and soon the contracts themselves were traded.
+
+00:00:18.590 --> 00:00:20.600
+Then, in 1973,
+
+00:00:20.590 --> 00:00:22.980
+Chicago opened an exchange for options.
+
+00:00:22.970 --> 00:00:23.860
+With a put,
+
+00:00:23.850 --> 00:00:25.034
+the farmer buys the right
+
+00:00:25.024 --> 00:00:26.820
+to sell at the agreed price,
+
+00:00:26.810 --> 00:00:28.420
+but not the obligation.
+
+00:00:28.410 --> 00:00:30.740
+If prices fall, he's protected.
+
+00:00:30.730 --> 00:00:33.860
+If they rise, he sells at the market.
+
+00:00:33.850 --> 00:00:36.300
+Over the decades, the pits became screens,
+
+00:00:36.290 --> 00:00:38.680
+and the screens became phones.
+
+00:00:38.670 --> 00:00:41.480
+But the rules stayed inside private systems:
+
+00:00:41.470 --> 00:00:42.840
+who took your trade,
+
+00:00:42.830 --> 00:00:45.400
+what backs it, how the price was set.
+
+00:00:45.390 --> 00:00:48.220
+On-chain, those rules become public code.
+
+00:00:48.210 --> 00:00:49.480
+You keep your keys,
+
+00:00:49.470 --> 00:00:51.000
+the collateral is visible,
+
+00:00:50.990 --> 00:00:53.640
+and the market never sleeps.
+
+00:00:53.630 --> 00:00:55.860
+That's why we build on NEAR Protocol,
+
+00:00:55.850 --> 00:00:57.426
+where smart contracts hold the rules
+
+00:00:57.416 --> 00:01:00.080
+and settle every trade in the open.
+
+00:01:00.070 --> 00:01:01.477
+Nightshade sharding is designed
+
+00:01:01.467 --> 00:01:02.900
+to scale with the market,
+
+00:01:02.890 --> 00:01:05.860
+and you sign every trade from your own wallet.
+
+00:01:05.850 --> 00:01:07.040
+For private intents,
+
+00:01:07.030 --> 00:01:09.800
+we're exploring trusted execution environments,
+
+00:01:09.790 --> 00:01:12.820
+with trades still settling on NEAR.
+
+00:01:12.810 --> 00:01:14.060
+On that foundation,
+
+00:01:14.050 --> 00:01:16.000
+we built Optionality:
+
+00:01:15.990 --> 00:01:18.100
+a pool-led options market.
+
+00:01:18.090 --> 00:01:19.752
+Order books need a matching engine
+
+00:01:19.742 --> 00:01:21.740
+and a trader on the other side,
+
+00:01:21.730 --> 00:01:24.260
+and thin books make orders slip.
+
+00:01:24.250 --> 00:01:27.020
+In Optionality, the pool is the other side.
+
+00:01:27.010 --> 00:01:28.640
+It quotes every spread,
+
+00:01:28.630 --> 00:01:31.000
+so you trade at the price you confirm.
+
+00:01:30.990 --> 00:01:34.240
+Choose a spread, review the quote, confirm.
+
+00:01:34.230 --> 00:01:36.040
+Your risk is fixed at entry,
+
+00:01:36.030 --> 00:01:38.040
+and nobody gets liquidated.
+
+00:01:38.030 --> 00:01:39.080
+Before accepting,
+
+00:01:39.070 --> 00:01:41.480
+the pool reserves the ticket's maximum payout,
+
+00:01:41.470 --> 00:01:44.380
+so every winning ticket is already covered.
+
+00:01:44.370 --> 00:01:46.360
+Then exit at the pool's quote,
+
+00:01:46.350 --> 00:01:48.180
+or hold to expiry:
+
+00:01:48.170 --> 00:01:49.980
+no venue entry fee,
+
+00:01:49.970 --> 00:01:51.920
+no early exit.
+
+00:01:51.910 --> 00:01:54.000
+Holding has a second upside.
+
+00:01:53.990 --> 00:01:56.520
+Many options expire worthless, but here,
+
+00:01:56.510 --> 00:01:58.500
+a loss can still win.
+
+00:01:58.490 --> 00:02:00.677
+Every position held to expiry enters
+
+00:02:00.667 --> 00:02:02.920
+our planned daily Loss Lottery:
+
+00:02:02.910 --> 00:02:04.920
+losing premiums fill the prize,
+
+00:02:04.910 --> 00:02:08.880
+and once a day, one participant takes the pot.
+
+00:02:08.870 --> 00:02:10.780
+Every position lives on a chart:
+
+00:02:10.770 --> 00:02:12.220
+the price over time,
+
+00:02:12.210 --> 00:02:14.840
+and at each expiry a wall,
+
+00:02:14.830 --> 00:02:17.640
+green for calls, red for puts.
+
+00:02:17.630 --> 00:02:22.240
+Each shows its P&L and time left. Tap a wall,
+
+00:02:22.230 --> 00:02:24.960
+choose put or call and an amount,
+
+00:02:24.950 --> 00:02:26.700
+and the pool quotes it.
+
+00:02:26.690 --> 00:02:29.440
+Next, we're building private copy trading:
+
+00:02:29.430 --> 00:02:31.180
+traders publish their P&L,
+
+00:02:31.170 --> 00:02:33.700
+and only subscribers see their trades,
+
+00:02:33.690 --> 00:02:35.620
+never their wallet.
+
+00:02:35.610 --> 00:02:37.060
+Finally, at expiry,
+
+00:02:37.050 --> 00:02:39.540
+no single source decides the price.
+
+00:02:39.530 --> 00:02:41.540
+Our exchange index, Kraken,
+
+00:02:41.530 --> 00:02:44.640
+OKX and Pyth each sign their own price,
+
+00:02:44.630 --> 00:02:46.008
+and the contract settles only
+
+00:02:45.998 --> 00:02:48.280
+when independent sources agree.
+
+00:02:48.270 --> 00:02:50.980
+Optionality. On-chain options,
+
+00:02:50.970 --> 00:02:53.381
+powered by NEAR, now live on testnet.

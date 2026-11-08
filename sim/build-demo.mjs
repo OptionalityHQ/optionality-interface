@@ -9,7 +9,7 @@
 // keep in step with Rust. What the builder still checks is the fonts: a page
 // that silently falls back to the system face looks like a design choice and
 // reads as a bug.
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,13 @@ const target = resolve(here, "..", "demo", "index.html");
 mkdirSync(dirname(target), { recursive: true });
 writeFileSync(target, template);
 
+const imagesDir = resolve(here, "..", "demo", "images");
+mkdirSync(imagesDir, { recursive: true });
+const meteorIconSrc = resolve(here, "..", "node_modules/@near-wallet-selector/meteor-wallet/assets/meteor-icon.png");
+const myNearIconSrc = resolve(here, "..", "node_modules/@near-wallet-selector/my-near-wallet/assets/my-near-wallet-icon.png");
+if (existsSync(meteorIconSrc)) copyFileSync(meteorIconSrc, join(imagesDir, "meteor-icon.png"));
+if (existsSync(myNearIconSrc)) copyFileSync(myNearIconSrc, join(imagesDir, "my-near-wallet-icon.png"));
+
 for (const file of ["geist-latin.woff2", "geist-mono-latin.woff2", "OFL.txt"]) {
   if (!existsSync(join(dirname(target), "fonts", file))) {
     throw new Error(`demo/fonts/${file} is missing · the screen would fall back to a system font`);
@@ -32,6 +39,18 @@ for (const file of ["geist-latin.woff2", "geist-mono-latin.woff2", "OFL.txt"]) {
 }
 console.log(`wrote ${target} (${(template.length / 1024).toFixed(1)} KiB) · served by the gateway at /`);
 
-await build({ entryPoints: [join(here, "../api/src/wallet.ts")], bundle: true, outfile: join(here, "../demo/wallet.js"), platform: "browser", format: "iife", target: "es2022", minify: true });
+await build({
+  entryPoints: [join(here, "../api/src/wallet.ts")],
+  bundle: true,
+  outfile: join(here, "../demo/wallet.js"),
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  minify: true,
+  inject: [join(here, "../api/src/buffer-shim.ts")],
+  banner: {
+    js: "var global=globalThis;globalThis.global=globalThis;var process=globalThis.process||(globalThis.process={env:{NODE_ENV:'production'},version:'',browser:true});",
+  },
+});
 
 await build({ entryPoints: [join(here, "../api/src/positions-chart.ts")], bundle: true, outfile: join(here, "../demo/positions-chart.js"), platform: "browser", format: "iife", target: "es2022", minify: true });

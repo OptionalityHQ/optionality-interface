@@ -1,0 +1,46 @@
+# Optionality v12 — picture and footage credits
+
+Real photographs and paintings from Wikimedia Commons. CC BY / CC BY-SA works need the attribution line wherever the film is published (e.g. the video description).
+
+| File | Title | Author | Licence | Attribution |
+|---|---|---|---|---|
+| p01-farmer-portrait-tennessee-1939.jpg | Close portrait of farmer A.L. Robinette in overalls and hat (TVA, 1939) | Tennessee Valley Authority (via DOE Oak Ridge Flickr) | Public domain | Not required (courtesy credit: Tennessee Valley Authority (via DOE Oak Ridge Flickr), via Wikimedia Commons) |
+| p02-painting-vangogh-wheatfield-crows.jpg | Van Gogh, Wheatfield with Crows (1890), wide format | Vincent van Gogh | Public domain | Not required (courtesy credit: Vincent van Gogh, via Wikimedia Commons) |
+| p03-elevator-wheat-wagons-pendleton.jpg | Muir Bros. 8-mule team hauling tandem wagons of wheat sacks down a street, Pendleton, Oregon, c.1900-1910 (Lee Moorhouse) | Lee Moorhouse (Univ. of Oregon collection, via DPLA) | Public domain | Not required (courtesy credit: Lee Moorhouse (Univ. of Oregon collection, via DPLA), via Wikimedia Commons) |
+| p04-contract-warehouse-receipt-dan-valley.jpg | Dan Valley Warehouse receipt for leaf tobacco sold by T. Souter Dallas, Leaksville NC, 3 May 1886 | Unknown (form printed for King, Moore & Co., Leaksville NC) | Public domain | Not required (courtesy credit: Unknown (form printed for King, Moore & Co., Leaksville NC), via Wikimedia Commons) |
+| p05-cbot-lasalle-night-postcard.jpg | Art Deco Board of Trade building at the end of LaSalle Street at night (linen postcard) | Tichnor Brothers, Publisher | Public domain | Not required (courtesy credit: Tichnor Brothers, Publisher, via Wikimedia Commons) |
+| p05-cbot-traders-kubrick-1949.jpg | CBOT floor traders, one signalling with raised hand (Stanley Kubrick for LOOK, 1949) | Stanley Kubrick | Public domain | Not required (courtesy credit: Stanley Kubrick, via Wikimedia Commons) |
+| p07-cboe-proxy-cbot-floor-may-1973.jpg | Packed CBOT trading floor, 31 May 1973 (proxy: CBOE opened in the CBOT building in April 1973) | U.S. Department of Agriculture | Public domain | Not required (courtesy credit: U.S. Department of Agriculture, via Wikimedia Commons) |
+| p08-screens-nyse-floor.jpg | NYSE trading posts covered in screens, few people | Kevin Hutchinson | CC BY 2.0 | "NYSE" by Kevin Hutchinson, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0), via Wikimedia Commons |
+| p10-servers-wikimedia-aisle.jpg | Wikimedia Foundation data centre aisle, black racks (fisheye) | VGrigas (WMF) | CC BY-SA 3.0 | "Wikimedia Foundation Servers 2015-42" by VGrigas (WMF), CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0), via Wikimedia Commons |
+| p11-earth-night-usa.jpg | City lights of the United States from Suomi NPP, 2012 (NASA) | NASA Earth Observatory | Public domain | Not required (courtesy credit: NASA Earth Observatory, via Wikimedia Commons) |
+| p12-highway-freeway-top-view.jpg | Elevated multi-lane road (Sheikh Zayed Rd, Dubai) seen from above, parallel lanes | Roman Logov prostoroman | CC0 | Not required (courtesy credit: Roman Logov prostoroman, via Wikimedia Commons) |
+| p13-empty-floor-cbot-desks.png | Mostly empty CBOT trading floor, rows of unattended desks and monitors, 2024 | Fixedsun | CC0 | Not required (courtesy credit: Fixedsun, via Wikimedia Commons) |
+| p14-crowd-floor-curb-market.jpg | Packed New York Curb market, brokers signalling up to offices, c.1916 (Bain News Service) | Bain News Service (George Grantham Bain Collection, LoC) | Public domain | Not required (courtesy credit: Bain News Service (George Grantham Bain Collection, LoC), via Wikimedia Commons) |
+| p16-lottery-bingo-drum.jpg | Numbered balls inside a wire bingo/raffle drum | elizaIO | CC BY-SA 2.0 | "Bingo balls in bingo drum" by elizaIO, CC BY-SA 2.0 (https://creativecommons.org/licenses/by-sa/2.0), via Wikimedia Commons |
+| p16-lottery-loteria-navidad-draw.jpg | Spanish Christmas lottery (Lotería de Navidad) draw, announcing the top prize, 1896 (Christian Franzen) | Christian Franzen | Public domain | Not required (courtesy credit: Christian Franzen, via Wikimedia Commons) |
+| p17-scales-vermeer-woman-holding-balance.jpg | Vermeer, Woman Holding a Balance (c.1664), NGA | Johannes Vermeer | CC0 | Not required (courtesy credit: Johannes Vermeer, via Wikimedia Commons) |
+| p18-vault-round-door-university-national-bank.jpg | Round steel vault doors, former University National Bank, Seattle | Joe Mabel | CC BY-SA 4.0 | "Bouldering Project (old University National Bank) 30 - sauna (vault) area" by Joe Mabel, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0), via Wikimedia Commons |
+
+| p19-key-chamberlain.jpg (cut out) | Wroclaw National Museum 2022 Iron World Exhibition P12 chamberlains key.jpg | Fallaner | CC BY-SA 4.0 | "Wroclaw National Museum 2022 Iron World Exhibition P12 chamberlains key.jpg" by Fallaner, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) |
+| p15-ticker-nyse-control-station.jpg | NYSE ticker control station | Library of Congress | Public domain | Not required |
+
+| p21-chip-amd-zen5.jpg | AMD@4nmCCD(6nmIOD)@Zen5@Granite Ridge@Ryzen 5 9600X@100-000001405 BY 2429SUY 9AEQ579S40073 DSCx12 CCD topmetal@50xBF.jpg | FritzchensFritz | CC0 | Not required |
+| p23-ledger-met.jpg | Account Book Ledger MET DP214203.jpg | John Carlin | CC0 | Not required |
+| p24-locked-door.jpg | Locked Door (14890125691).jpg | Luke Jones | CC BY 2.0 | "Locked Door (14890125691).jpg" by Luke Jones, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0) |
+| r-chicago-cbot.mp4 (tape, cropped) | Chicago Scenes (ca. 1974).webm | US National Archives | Public domain | Not required |
+| r-hourglass.mp4 (tape) | Hourglass - tokyo - 2015 11 17.webm | Nesnad | CC BY-SA 4.0 | "Hourglass - tokyo - 2015 11 17.webm" by Nesnad, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) |
+| p09-phone-stock-app.jpg | Checking stock market prices (Unsplash).jpg | William Iven firmbee | CC0 | Not required |
+
+| p30-keyring.jpg (cut out) | Clé maison.jpg | EnZiGuRi25 | CC BY-SA 4.0 | "Clé maison.jpg" by EnZiGuRi25, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0), cut out |
+| p28-coin-jar.jpg (cut out) | A jar of world coins.jpg | Billjones94 | CC BY-SA 4.0 | "A jar of world coins.jpg" by Billjones94, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0) |
+| p31-roundclock.jpg (cut out) | Quartz P4300001b.jpg | Zv0486 | CC BY-SA 4.0 | "Quartz P4300001b.jpg" by Zv0486, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0), cut out and desaturated |
+| p29-tip-jar.jpg | Jar for tips at a restaurant in New Jersey.JPG | Tomwsulcer | CC0 | Not required |
+
+Icons: NEAR, Binance, OKX (simple-icons, CC0) set on brand-colour tiles; Coinbase mark redrawn from its geometry; Kraken, Bybit, Pyth colour marks (web3icons, MIT). The marks remain trademarks of their owners; shown to name the price sources and the network.
+
+Subtitles: optionality-v12.srt / .vtt (also burned in).
+
+All footage and pictures are real: archival film, photographs, paintings and museum objects. No AI-generated images or video are used (v11).
+
+On-chain data shown: NEAR testnet RPC, 2026-11-05 — tx 5cDEQh4AZsH5iwNrbCshU2xVH3s3eu4PfvFd72MsvkSm (settle_ticket, ticket 3, pool), oracle.sable-knee.testnet get_committee/get_latest_fix (ETH-USD fix 2,439.16 by kraken, venue-index, okx; quorum 2 of 4; pyth 2,324.92 outside the band).
