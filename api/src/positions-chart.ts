@@ -84,12 +84,14 @@ let pinch: {
   anchorPrice: number;
 } | null = null;
 const COLOR = { Call: "#14e091", Put: "#f03c56" };
-const chartIconSvg = (sym: string, s = 13) => {
+const chartIconSvg = (sym: string, s = 14) => {
   const k = sym.toUpperCase();
   if (k === "ETH")
     return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#627EEA"/><path d="M12 4.5v5.55l4.7 2.1L12 4.5z" fill="#C0CBF6"/><path d="M12 4.5L7.3 12.15l4.7-2.1V4.5z" fill="#FFF"/><path d="M12 15.75v3.75l4.7-6.5-4.7 2.75z" fill="#C0CBF6"/><path d="M12 19.5v-3.75L7.3 13l4.7 6.5z" fill="#FFF"/><path d="M12 14.85l4.7-2.7-4.7-2.1v4.8z" fill="#8197EE"/><path d="M7.3 12.15l4.7 2.7v-4.8l-4.7 2.1z" fill="#C0CBF6"/></svg>`;
   if (k === "BTC")
     return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#F7931A"/><path d="M15.9 10.6c.2-1.3-.8-2-2.2-2.5l.4-1.8-1.1-.3-.4 1.7c-.3-.1-.6-.1-.9-.2l.4-1.7-1.1-.3-.4 1.8c-.2-.1-.5-.1-.7-.2l-1.5-.4-.3 1.2s.8.2.8.2c.4.1.5.4.5.6l-.5 2.1c.1 0 .1 0 .2.1l-.2 0-.8 3c-.1.2-.3.4-.6.3 0 0-.8-.2-.8-.2l-.5 1.3 1.4.4c.3.1.5.1.8.2l-.5 1.8 1.1.3.4-1.8c.3.1.6.2.9.2l-.4 1.8 1.1.3.5-1.8c1.9.4 3.3.2 3.9-1.5.5-1.4 0-2.2-1-2.7.7-.2 1.2-.6 1.4-1.6zm-2.5 3.5c-.3 1.4-2.7.6-3.5.4l.6-2.5c.8.2 3.2.6 2.9 2.1zm.3-3.5c-.3 1.2-2.3.6-2.9.5l.6-2.2c.6.1 2.6.4 2.3 1.7z" fill="#FFF"/></svg>`;
+  if (k === "NEAR")
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#262626" stroke="#3a3a3a" stroke-width="1"/><path d="M16.2 7.2L12.7 12.4a.35.35 0 00.52.45l3.35-2.9v6.65a.4.4 0 01-.72.24L8.45 7.4A1.2 1.2 0 007.5 6.9H7.1A1.1 1.1 0 006 8v8a1.1 1.1 0 001.1 1.1c.38 0 .74-.19.95-.5l3.5-5.2a.35.35 0 00-.52-.45L7.68 13.85V7.2a.4.4 0 01.72-.24l7.4 9.44c.22.28.56.45.95.45h.4A1.1 1.1 0 0018.25 15.75v-8A1.1 1.1 0 0017.15 6.65c-.38 0-.74.2-.95.55z" fill="#F0F0F0"/></svg>`;
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#26A17B"/><path d="M13.3 12.8v-.02c-.1 0-.6.04-1.3.04-.7 0-1.15-.03-1.32-.04v.02c-2.6-.11-4.54-.56-4.54-1.1s1.94-.98 4.54-1.1v1.75c.18.01.64.05 1.33.05.78 0 1.2-.04 1.29-.05v-1.75c2.6.12 4.53.56 4.53 1.1s-1.93.99-4.53 1.1zm0-2.38V8.85h3.62V6.5H7.08v2.35h3.6v1.57c-2.93.13-5.14.71-5.14 1.4s2.21 1.27 5.14 1.4v5.03h2.62v-5.03c2.92-.13 5.13-.71 5.13-1.4s-2.21-1.27-5.13-1.4z" fill="#FFF"/></svg>`;
 };
 type MarketStats = {
@@ -339,7 +341,7 @@ function openPositionPopup(pos: any, anchor?: { x: number; y: number }) {
         <span class="chart-pos-badge ${badgeCls}">${kind.toUpperCase()} SPREAD</span>
         <b style="margin-left:6px">${pos.asset} ${money(Number(pos.low))}–${money(Number(pos.high))}</b>
       </div>
-      <span class="cpp-ticket">Ticket #${pos.ticketId ?? "—"}</span>
+      <span class="cpp-ticket">Ticket #${pos.ticketId ?? "-"}</span>
     </div>
     <div class="cpp-grid">
       <div><span>Strike / Break-Even</span><b>${money(strike)} / <span style="color:#d8f894">${money(breakEvenPx)}</span></b></div>
@@ -694,99 +696,99 @@ function ensure() {
   const root = document.getElementById("positions-chart");
   if (!root || root.childElementCount) return;
   root.innerHTML = `<style>
-  .chart-container{display:flex;flex-direction:column;height:100%;min-height:0;background:transparent;border:0;border-radius:0;padding:8px 12px 10px;color:#f0f0f0;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',system-ui,sans-serif);font-variant-numeric:tabular-nums;gap:6px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.16) transparent}
-  .chart-stats{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;margin:0;font:500 12.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;color:#8f9399}
-  .chart-stats b{color:#f0f0f0;font-weight:600;font-size:18px;display:inline-flex;align-items:center}
+  .chart-container{display:flex;flex-direction:column;height:100%;min-height:0;background:transparent;border:0;border-radius:0;padding:8px 12px 10px;color:#f0f0f0;font-family:var(--sans,'General Sans','Satoshi',system-ui,sans-serif);font-variant-numeric:tabular-nums;gap:6px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.16) transparent}
+  .chart-stats{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;margin:0;font:500 13.5px var(--sans,'General Sans','General Sans',sans-serif);font-variant-numeric:tabular-nums;color:#8f9399}
+  .chart-stats b{color:#f0f0f0;font-weight:600;font-size:20px;display:inline-flex;align-items:center}
   .chart-stats .up{color:#14e091}.chart-stats .down{color:#f03c56}
   .chart-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .chart-group{display:flex;gap:3px}.chart-nav button,.chart-nav select,.chart-nearest{background:#1f1f1f;border:1px solid #2b2b2b;border-radius:6px;padding:6px 11px;color:#8f9399;font:500 12.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center}
+  .chart-group{display:flex;gap:3px}.chart-nav button,.chart-nav select,.chart-nearest{background:#1f1f1f;border:1px solid #2b2b2b;border-radius:6px;padding:6px 12px;color:#8f9399;font:500 13.5px var(--sans,'General Sans','General Sans',sans-serif);font-variant-numeric:tabular-nums;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center}
   .chart-nav button.active{color:#f0f0f0;background:#2c2c2c;border-color:#3d3d3d;font-weight:600}.chart-nav button:hover{color:#fff}
-  .chart-hud{margin-left:auto;font:600 12px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);color:#8f9399;background:#1f1f1f;border:1px solid #2b2b2b;border-radius:999px;padding:4px 11px;cursor:pointer}
+  .chart-hud{margin-left:auto;font:600 13px var(--sans,'General Sans','General Sans',sans-serif);color:#8f9399;background:#1f1f1f;border:1px solid #2b2b2b;border-radius:999px;padding:5px 12px;cursor:pointer}
   .chart-hud.live{color:#14e091;border-color:#333;background:#1f1f1f}
-  .chart-workspace{display:grid;grid-template-columns:minmax(0,1fr) 304px;gap:14px;min-height:360px;flex:1}.chart-workspace.editing{grid-template-columns:minmax(0,1fr) 304px}
+  .chart-workspace{display:grid;grid-template-columns:minmax(0,1fr) 316px;gap:14px;min-height:360px;flex:1}.chart-workspace.editing{grid-template-columns:minmax(0,1fr) 316px}
   .chart-stage{position:relative;flex:1;height:auto;min-height:340px;min-width:0;touch-action:none;user-select:none;cursor:crosshair;overflow:hidden;outline:none;border:1px solid #262626;border-radius:8px;background:#141414}
   .chart-stage:focus-visible{outline:1px solid #8f9399}.chart-stage.dragging{cursor:grabbing}.chart-stage canvas{display:block;width:100%;height:100%;pointer-events:none}
-  .chart-pos-popup{position:absolute;z-index:20;width:312px;background:#181818;border:1px solid #333333;border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.78);padding:12px 14px;font:500 12px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;color:#f0f0f0;user-select:none}
+  .chart-pos-popup{position:absolute;z-index:20;width:320px;background:#181818;border:1px solid #333333;border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.78);padding:12px 14px;font:500 13px var(--sans,'General Sans','General Sans',sans-serif);font-variant-numeric:tabular-nums;color:#f0f0f0;user-select:none}
   .chart-pos-popup[hidden]{display:none}
   .cpp-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #262626}
-  .cpp-ticket{color:#8f9399;font-size:11px}
+  .cpp-ticket{color:#8f9399;font-size:12px}
   .cpp-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:8px}
   .cpp-grid div{display:flex;flex-direction:column;gap:1px}
-  .cpp-grid span{color:#8f9399;font-size:10.5px}
-  .cpp-grid b{color:#f0f0f0;font-size:12px;font-weight:600}
-  .cpp-expiry{font-size:11px;color:#8f9399;background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;padding:4px 8px;margin-bottom:8px}
+  .cpp-grid span{color:#8f9399;font-size:11.5px}
+  .cpp-grid b{color:#f0f0f0;font-size:13px;font-weight:600}
+  .cpp-expiry{font-size:12px;color:#8f9399;background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;padding:4px 8px;margin-bottom:8px}
   .cpp-expiry b{color:#f0f0f0;font-weight:600}
-  .cpp-prompt{margin:0 0 8px;color:#d0d4da;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-size:11.5px;line-height:1.4}
+  .cpp-prompt{margin:0 0 8px;color:#d0d4da;font-family:var(--sans,'General Sans','General Sans',sans-serif);font-size:12.5px;line-height:1.4}
   .cpp-actions{display:flex;gap:7px}
-  .cpp-btn{flex:1;padding:7px 9px;border-radius:6px;font:600 11.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);cursor:pointer;border:1px solid transparent}
+  .cpp-btn{flex:1;padding:7px 9px;border-radius:6px;font:600 12.5px var(--sans,'General Sans','General Sans',sans-serif);cursor:pointer;border:1px solid transparent}
   .cpp-btn.close-pos{background:#f03c56;color:#fff;border-color:#f03c56}
   .cpp-btn.close-pos:hover{background:#ff546d}
   .cpp-btn.close-pos:disabled{opacity:.5;cursor:not-allowed}
   .cpp-btn.keep-open{background:#252525;color:#f0f0f0;border-color:#383838}
   .cpp-btn.keep-open:hover{border-color:#505050}
-  .cpp-status{font-size:11px;color:#8f9399;margin-top:5px;min-height:13px}
-  .chart-help{margin:2px 0 0;color:#8f9399;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-size:11.5px;line-height:1.5}
+  .cpp-status{font-size:12px;color:#8f9399;margin-top:5px;min-height:13px}
+  .chart-help{margin:2px 0 0;color:#8f9399;font-family:var(--sans,'General Sans','General Sans',sans-serif);font-size:12.5px;line-height:1.5}
   .chart-editor{min-width:0;border-left:1px solid #262626;padding-left:14px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:thin}.chart-editor>*{flex-shrink:0}.chart-editor[hidden]{display:none}
-  .chart-editor h3{font-family:var(--display,var(--sans,'Satoshi',sans-serif));font-size:15.5px;font-weight:600;margin:0 0 2px}.chart-editor .editor-expiry{color:#8f9399;font:500 11.5px var(--sans,'Satoshi',sans-serif);margin:0 0 8px}
-  .chart-editor label{display:block;color:#8f9399;font-family:var(--sans,'Satoshi',sans-serif);font-size:11.5px;font-weight:500;margin:8px 0 4px}
-  .chart-editor input,.chart-editor select{box-sizing:border-box;min-width:0;width:100%;padding:8px 10px;border:1px solid #333333;border-radius:6px;background:#252525;color:#f0f0f0;font:500 13px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums}
-  .chart-editor input#o-price{font-size:15px;font-weight:600}
+  .chart-editor h3{font-family:var(--display,var(--sans,'General Sans',sans-serif));font-size:17px;font-weight:600;margin:0 0 2px}.chart-editor .editor-expiry{color:#8f9399;font:500 12.5px var(--sans,'General Sans',sans-serif);margin:0 0 8px}
+  .chart-editor label{display:block;color:#8f9399;font-family:var(--sans,'General Sans',sans-serif);font-size:12.5px;font-weight:500;margin:8px 0 4px}
+  .chart-editor input,.chart-editor select{box-sizing:border-box;min-width:0;width:100%;padding:8px 10px;border:1px solid #333333;border-radius:6px;background:#252525;color:#f0f0f0;font:500 14px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums}
+  .chart-editor input#o-price{font-size:16px;font-weight:600}
   .chart-expiry-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
-  .chart-expiry-chips button{flex:1;min-width:44px;padding:4px 6px;font:500 11px var(--sans,'Satoshi',sans-serif);background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;color:#8f9399;cursor:pointer}
+  .chart-expiry-chips button{flex:1;min-width:44px;padding:4px 6px;font:500 12px var(--sans,'General Sans',sans-serif);background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;color:#8f9399;cursor:pointer}
   .chart-expiry-chips button:hover{color:#f0f0f0;border-color:#444}
-  .chart-side{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#1f1f1f;padding:3px;border-radius:7px;border:1px solid #262626}.chart-side button{padding:7px;background:transparent;border:1px solid transparent;border-radius:5px;color:#8f9399;cursor:pointer;font:600 12.5px var(--sans,'Satoshi',sans-serif)}
+  .chart-side{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#1f1f1f;padding:3px;border-radius:7px;border:1px solid #262626}.chart-side button{padding:7px;background:transparent;border:1px solid transparent;border-radius:5px;color:#8f9399;cursor:pointer;font:600 13.5px var(--sans,'General Sans',sans-serif)}
   .chart-side button.call-active{border-color:#2e6b52;color:#f0f0f0;background:#255440}.chart-side button.put-active{border-color:#7d2e3b;color:#f0f0f0;background:#682430}
   .chart-size-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;background:#1f1f1f;padding:3px;border-radius:6px;border:1px solid #262626}
-  .chart-size-mode button{padding:5px 6px;border:1px solid transparent;border-radius:4px;background:transparent;color:#8f9399;font:500 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .chart-size-mode button{padding:5px 6px;border:1px solid transparent;border-radius:4px;background:transparent;color:#8f9399;font:500 12.5px var(--sans,'General Sans',sans-serif);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
   .chart-size-mode button.active{background:#2c2c2c;color:#f0f0f0;font-weight:600;border:1px solid #3d3d3d}
   .chart-size-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:8px;align-items:end;margin-top:6px}
   .chart-size-grid label{margin:0 0 4px}
   .chart-size-grid input.primary-size{border-color:#484848;background:#252525}
   .chart-usd-chips{display:flex;gap:4px;margin-top:5px}
-  .chart-usd-chips button{flex:1;padding:4px 6px;font:500 11px var(--sans,'Satoshi',sans-serif);background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;color:#8f9399;cursor:pointer}
+  .chart-usd-chips button{flex:1;padding:4px 6px;font:500 12px var(--sans,'General Sans',sans-serif);background:#1f1f1f;border:1px solid #2e2e2e;border-radius:5px;color:#8f9399;cursor:pointer}
   .chart-usd-chips button:hover{color:#f0f0f0;border-color:#444}
-  .chart-editor .chart-quote{font:500 12.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;margin-top:8px;height:auto;flex-shrink:0;line-height:1.45;color:#f0f0f0}
+  .chart-editor .chart-quote{font:500 13.5px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums;margin-top:8px;height:auto;flex-shrink:0;line-height:1.45;color:#f0f0f0}
   .chart-cost-card{background:#1f1f1f;border:1px solid #2e2e2e;border-radius:7px;padding:10px 11px;margin-top:4px;box-sizing:border-box}
   .chart-cost-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
-  .chart-cost-usd{font-size:15px;font-weight:700;color:#f0f0f0;line-height:1.25}
-  .chart-cost-sub{font-size:11.5px;color:#8f9399;line-height:1.45;word-break:break-word}
+  .chart-cost-usd{font-size:16.5px;font-weight:700;color:#f0f0f0;line-height:1.25}
+  .chart-cost-sub{font-size:12.5px;color:#8f9399;line-height:1.45;word-break:break-word}
   .cost-tip-wrap{position:relative;display:inline-flex;align-items:center;flex-shrink:0}
-  .cost-tip-trigger{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;background:#252525;border:1px solid #383838;color:#8f9399;font:500 10.5px var(--sans,'Satoshi',sans-serif);cursor:help;user-select:none;white-space:nowrap}
+  .cost-tip-trigger{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;background:#252525;border:1px solid #383838;color:#8f9399;font:500 11.5px var(--sans,'General Sans',sans-serif);cursor:help;user-select:none;white-space:nowrap}
   .cost-tip-trigger:hover{color:#f0f0f0;border-color:#484848}
-  .cost-tip-box{display:none;position:absolute;right:0;bottom:calc(100% + 7px);width:272px;z-index:45;background:#1f1f1f;border:1px solid #363636;border-radius:8px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,0.85);font:500 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;color:#f0f0f0;line-height:1.45}
+  .cost-tip-box{display:none;position:absolute;right:0;bottom:calc(100% + 7px);width:280px;z-index:45;background:#1f1f1f;border:1px solid #363636;border-radius:8px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,0.85);font:500 12.5px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums;color:#f0f0f0;line-height:1.45}
   .cost-tip-wrap:hover .cost-tip-box,.cost-tip-wrap:focus-within .cost-tip-box{display:block}
   .cost-tip-row{display:flex;justify-content:space-between;gap:8px;padding:2.5px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
   .cost-tip-row:last-child{border-bottom:0;padding-top:5px;font-weight:600}
   .cost-tip-row span{color:#8f9399}
-  .chart-bal-row{display:flex;justify-content:space-between;align-items:center;font:500 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;color:#8f9399;margin-top:6px;padding:4px 2px;flex-shrink:0}
-  .chart-bal-warn{margin-top:6px;padding:8px 9px;border-radius:6px;background:rgba(240,60,86,0.12);border:1px solid rgba(240,60,86,0.45);color:#ffb8c0;font:11.5px var(--sans,'Satoshi',sans-serif);line-height:1.4;flex-shrink:0}
+  .chart-bal-row{display:flex;justify-content:space-between;align-items:center;font:500 12.5px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums;color:#8f9399;margin-top:6px;padding:4px 2px;flex-shrink:0}
+  .chart-bal-warn{margin-top:6px;padding:8px 9px;border-radius:6px;background:rgba(240,60,86,0.12);border:1px solid rgba(240,60,86,0.45);color:#ffb8c0;font:12.5px var(--sans,'General Sans',sans-serif);line-height:1.4;flex-shrink:0}
   .chart-bal-warn[hidden]{display:none}
-  .chart-bal-topup{margin-top:6px;width:100%;padding:6px 8px;border-radius:6px;border:0;background:#e5e5e5;color:#121212;font:600 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer}
+  .chart-bal-topup{margin-top:6px;width:100%;padding:6px 8px;border-radius:6px;border:0;background:#e5e5e5;color:#121212;font:600 12.5px var(--sans,'General Sans',sans-serif);cursor:pointer}
   .chart-bal-topup:hover{background:#ffffff}
-  .chart-submit{width:100%;padding:11px;background:#e5e5e5;color:#121212;border:0;border-radius:6px;font:600 13px var(--sans,'Satoshi',system-ui,sans-serif);cursor:pointer;margin-top:6px;flex-shrink:0}.chart-submit:hover:not(:disabled){background:#ffffff}.chart-submit:disabled{opacity:1;cursor:not-allowed;background:#242424;color:#666a70}
+  .chart-submit{width:100%;padding:11px;background:#e5e5e5;color:#121212;border:0;border-radius:6px;font:600 14px var(--sans,'General Sans',system-ui,sans-serif);cursor:pointer;margin-top:6px;flex-shrink:0}.chart-submit:hover:not(:disabled){background:#ffffff}.chart-submit:disabled{opacity:1;cursor:not-allowed;background:#242424;color:#666a70}
   .chart-submit.insufficient{background:rgba(240,60,86,0.16);color:#ffb8c0;border:1px solid rgba(240,60,86,0.45);opacity:1}
-  .chart-close{width:100%;padding:7px;background:transparent;border:0;color:#8f9399;cursor:pointer;font:500 12px var(--sans,'Satoshi',system-ui,sans-serif);flex-shrink:0}
-  .chart-message{font-family:var(--sans,'Satoshi',system-ui,sans-serif);font-size:11.5px;color:#8f9399;line-height:1.45;min-height:16px;margin:4px 0 0;flex-shrink:0}.chart-nearest{width:100%;margin-top:6px;white-space:normal;font-size:11.5px;padding:5px 8px;flex-shrink:0}
+  .chart-close{width:100%;padding:7px;background:transparent;border:0;color:#8f9399;cursor:pointer;font:500 12.5px var(--sans,'General Sans',system-ui,sans-serif);flex-shrink:0}
+  .chart-message{font-family:var(--sans,'General Sans',system-ui,sans-serif);font-size:12.5px;color:#8f9399;line-height:1.45;min-height:16px;margin:4px 0 0;flex-shrink:0}.chart-nearest{width:100%;margin-top:6px;white-space:normal;font-size:12.5px;padding:5px 8px;flex-shrink:0}
   .expiry-line{stroke:rgba(240,240,240,.4);stroke-width:1;transition:stroke .15s}.expiry-wall:hover .expiry-line{stroke:#f0f0f0;stroke-width:2}
-  .chart-expiry-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:#1f1f1f;border:1px solid #2e2e2e;color:#8f9399;font:500 11.5px var(--sans,'Satoshi',sans-serif);white-space:nowrap}
-  .chart-custom-expiry{display:flex;align-items:center;gap:4px;font:500 11.5px var(--sans,'Satoshi',sans-serif);color:#8f9399}
-  .chart-custom-expiry input{width:54px;padding:5px 6px;border:1px solid #333;border-radius:6px;background:#252525;color:#f0f0f0;font:600 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums}
+  .chart-expiry-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:#1f1f1f;border:1px solid #2e2e2e;color:#8f9399;font:500 12.5px var(--sans,'General Sans',sans-serif);white-space:nowrap}
+  .chart-custom-expiry{display:flex;align-items:center;gap:4px;font:500 12.5px var(--sans,'General Sans',sans-serif);color:#8f9399}
+  .chart-custom-expiry input{width:56px;padding:5px 6px;border:1px solid #333;border-radius:6px;background:#252525;color:#f0f0f0;font:600 12.5px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums}
   .chart-positions-panel{border:1px solid #262626;border-radius:8px;background:#181818;padding:8px 12px;margin-top:4px}
-  .chart-positions-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;font:500 12px var(--sans,'Satoshi',sans-serif)}
-  .chart-positions-head b{color:#f0f0f0;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .chart-positions-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;font:500 13px var(--sans,'General Sans',sans-serif)}
+  .chart-positions-head b{color:#f0f0f0;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
   .chart-pos-tabs{display:inline-flex;gap:4px}
-  .chart-pos-tabs button{background:#1f1f1f;border:1px solid #2e2e2e;color:#8f9399;border-radius:6px;padding:4px 10px;font:500 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer}
+  .chart-pos-tabs button{background:#1f1f1f;border:1px solid #2e2e2e;color:#8f9399;border-radius:6px;padding:5px 11px;font:500 12.5px var(--sans,'General Sans',sans-serif);cursor:pointer}
   .chart-pos-tabs button.active{background:#2c2c2c;color:#f0f0f0;font-weight:600;border-color:#3d3d3d}
-  .chart-positions-summary{display:flex;gap:14px;color:#8f9399;font-size:11.5px;flex-wrap:wrap}
-  .chart-positions-table-wrap{overflow-x:auto;max-height:155px;overflow-y:auto;scrollbar-width:thin}
-  .chart-positions-table{width:100%;border-collapse:collapse;font:500 12px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;text-align:left}
-  .chart-positions-table th{color:#8f9399;font-weight:500;padding:6px 8px;border-bottom:1px solid #262626;white-space:nowrap;font-size:11.5px}
+  .chart-positions-summary{display:flex;gap:14px;color:#8f9399;font-size:12.5px;flex-wrap:wrap}
+  .chart-positions-table-wrap{overflow-x:auto;max-height:165px;overflow-y:auto;scrollbar-width:thin}
+  .chart-positions-table{width:100%;border-collapse:collapse;font:500 13px var(--sans,'General Sans',sans-serif);font-variant-numeric:tabular-nums;text-align:left}
+  .chart-positions-table th{color:#8f9399;font-weight:500;padding:6px 8px;border-bottom:1px solid #262626;white-space:nowrap;font-size:12px}
   .chart-positions-table td{padding:6px 8px;border-bottom:1px solid #212121;color:#f0f0f0;white-space:nowrap}
   .chart-positions-table tr:hover td{background:rgba(255,255,255,.025)}
-  .chart-pos-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-weight:600;font-size:10.5px}
+  .chart-pos-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-weight:600;font-size:11.5px}
   .chart-pos-badge.call{background:rgba(20,224,145,.12);color:#14e091;border:1px solid rgba(20,224,145,.3)}
   .chart-pos-badge.put{background:rgba(240,60,86,.12);color:#f03c56;border:1px solid rgba(240,60,86,.3)}
-  .chart-pos-btn{background:#1f1f1f;border:1px solid #333;color:#f0f0f0;border-radius:5px;padding:3px 9px;font:500 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer;margin-right:4px}
+  .chart-pos-btn{background:#1f1f1f;border:1px solid #333;color:#f0f0f0;border-radius:5px;padding:4px 10px;font:500 12px var(--sans,'General Sans',sans-serif);cursor:pointer;margin-right:4px}
   .chart-pos-btn:hover{border-color:#555;background:#282828}
   .chart-pos-btn.close:hover{border-color:#f03c56;color:#f03c56}
   @media(max-width:800px){.chart-workspace,.chart-workspace.editing{grid-template-columns:minmax(0,1fr)}.chart-editor{border-left:0;border-top:1px solid #262626;padding:14px 0 0}.chart-stage{min-height:240px;flex:1}.chart-workspace.editing .chart-stage{position:sticky;top:0;height:220px;align-self:start;z-index:2;background:#141414}.chart-hud{width:100%;margin:0}.chart-container{padding:10px}}
@@ -841,7 +843,7 @@ function ensure() {
     <button type="button" data-usd-chip="250">$250</button>
   </div>
   <p class="chart-message" id="o-match" aria-live="polite"></p><button type="button" class="chart-nearest" id="o-nearest" hidden></button>
-  <div class="chart-quote" id="o-px" aria-live="polite">—</div>
+  <div class="chart-quote" id="o-px" aria-live="polite">-</div>
   <div class="chart-bal-row"><span>${chartIconSvg("USDT", 11)}Your Available Balance (USDT)</span><b id="o-avail-bal" style="color:#f0f0f0">$0.00</b></div>
   <div class="chart-bal-warn" id="o-balance-warn" hidden>
     <div id="o-balance-warn-text">⚠️ Insufficient balance to place this order.</div>
@@ -1263,7 +1265,7 @@ function reconcileDraft() {
   ($("o-buy") as HTMLButtonElement).disabled = true;
   $("o-buy").textContent = "Buy";
   if (!draftDrag) {
-    $("o-px").textContent = "—";
+    $("o-px").textContent = "-";
   }
   const isMidnight = expiry
     ? new Date(Math.round(expiry / 1e6)).getUTCHours() === 0 &&
@@ -1347,7 +1349,7 @@ function refreshBalanceState() {
       if (avail <= 0) {
         warnEl.hidden = false;
         if (warnTextEl) {
-          warnTextEl.innerHTML = `⚠️ <b>No funds available ($0.00)</b> — You cannot place an order until you fund your account.`;
+          warnTextEl.innerHTML = `⚠️ <b>No funds available ($0.00)</b>: You cannot place an order until you fund your account.`;
         }
       } else {
         warnEl.hidden = true;
@@ -1363,8 +1365,8 @@ function refreshBalanceState() {
     if (insufficient && warnTextEl) {
       warnTextEl.innerHTML =
         avail <= 0
-          ? `⚠️ <b>Cannot place order ($0.00 available)</b> — This order requires <b>${money(needed)} USDT</b>. Fund your account first.`
-          : `⚠️ <b>Insufficient balance</b> — Order costs <b>${money(needed)} USDT</b>, but you only have <b>${money(avail)}</b> available.`;
+          ? `⚠️ <b>Cannot place order ($0.00 available)</b>: This order requires <b>${money(needed)} USDT</b>. Fund your account first.`
+          : `⚠️ <b>Insufficient balance</b>: Order costs <b>${money(needed)} USDT</b>, but you only have <b>${money(avail)}</b> available.`;
     }
   }
   if (buyBtn) {
@@ -2023,14 +2025,14 @@ function renderStats() {
     ? stats.volumeUsd24h >= 1e9
       ? `$${(stats.volumeUsd24h / 1e9).toFixed(2)}B`
       : `$${(stats.volumeUsd24h / 1e6).toFixed(1)}M`
-    : "—";
+    : "-";
   const openPosCount = getOpenPositionsForAsset().length;
   const statsText = `${money(px)}:${pct}:${vol}:${stats?.high24h}:${stats?.low24h}:${stats?.trades24h}:${openPosCount}`;
   if (statsText === lastStatsText) return;
   lastStatsText = statsText;
   el.replaceChildren();
   const price = document.createElement("b");
-  price.innerHTML = px ? `${chartIconSvg(asset, 16)}${asset}/USDT ${money(px)}` : "—";
+  price.innerHTML = px ? `${chartIconSvg(asset, 16)}${asset}/USDT ${money(px)}` : "-";
   el.append(price);
   if (pct != null) {
     const chg = document.createElement("span");
@@ -2098,7 +2100,7 @@ function renderPositionsPanel() {
   if (bottomPanelTab === "history") {
     if (!allClosed.length) {
       summaryEl.textContent = "0 closed or expired trades for this account yet";
-      bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'Satoshi',sans-serif);padding:4px 2px">No expired or closed trades yet. When a position expires or is closed back to the pool, it is permanently recorded here.</div>`;
+      bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'General Sans',sans-serif);padding:4px 2px">No expired or closed trades yet. When a position expires or is closed back to the pool, it is permanently recorded here.</div>`;
       return;
     }
     const totalRealised = allClosed.reduce((acc: number, c: any) => acc + Number(c.pnl || 0), 0);
@@ -2123,7 +2125,7 @@ function renderPositionsPanel() {
       const pnl = Number(row.pnl ?? 0);
       const pnlCls = pnl >= 0 ? "#34d399" : "#ff5a65";
       const timeMs = Number(row.atMs || (row.expiryNs ? Number(row.expiryNs) / 1e6 : 0));
-      const timeStr = timeMs > 0 ? `${date(timeMs)} ${tzLabel()}` : String(row.at || "—");
+      const timeStr = timeMs > 0 ? `${date(timeMs)} ${tzLabel()}` : String(row.at || "-");
       tr.innerHTML = `
         <td>${timeStr}</td>
         <td><b>${row.series}</b>${row.ticketId ? ` <span style="color:#7d8792">#${row.ticketId}</span>` : ""}</td>
@@ -2145,7 +2147,7 @@ function renderPositionsPanel() {
     summaryEl.textContent = allClosed.length
       ? `0 open positions · ${allClosed.length} settled/expired trade${allClosed.length === 1 ? "" : "s"} in Trade History tab`
       : "0 open positions · Click any price on the chart or enter any strike in New Order to open a position";
-    bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'Satoshi',sans-serif);padding:4px 2px">No open positions right now.${allClosed.length ? ` Click <b>Trade History (${allClosed.length})</b> above to view your expired &amp; settled trades.` : " Positions you open appear both here and as clickable bounded horizontal spread lines on the chart."}</div>`;
+    bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'General Sans',sans-serif);padding:4px 2px">No open positions right now.${allClosed.length ? ` Click <b>Trade History (${allClosed.length})</b> above to view your expired &amp; settled trades.` : " Positions you open appear both here and as clickable bounded horizontal spread lines on the chart."}</div>`;
     return;
   }
 
@@ -2272,7 +2274,7 @@ function draw() {
     svg.append(
       node(
         "text",
-        { x: 20, y: 80, fill: "#8b9099", "font-size": 13, "font-family": "Satoshi, Plus Jakarta Sans, sans-serif" },
+        { x: 20, y: 80, fill: "#8b9099", "font-size": 13, "font-family": "General Sans, Satoshi, sans-serif" },
         "Loading price history…",
       ),
     );
@@ -2337,7 +2339,7 @@ function draw() {
           y: y + 4,
           fill: "#8f9399",
           "font-size": 11,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         price.toLocaleString("en-US", { maximumFractionDigits: 4 }),
       ),
@@ -2366,7 +2368,7 @@ function draw() {
           "text-anchor": j === 0 ? "start" : j === 4 ? "end" : "middle",
           fill: "#8f9399",
           "font-size": 11,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         timeSpan > 86400000 ? `${date(t)} ${tzLabel()}` : `${label}${j === 4 ? ` (${tzLabel()})` : ""}`,
       ),
@@ -2627,7 +2629,7 @@ function draw() {
               y: beTagY + 10.5,
               fill: posBeColor,
               "font-size": 9.5,
-              "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+              "font-family": "General Sans, Satoshi, sans-serif",
             },
             beText,
           ),
@@ -2693,7 +2695,7 @@ function draw() {
             "text-anchor": "end",
             fill: posColor,
             "font-size": 10,
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           `Ends ${date(posExpiryMs)} ${tzLabel()}`,
         ),
@@ -2734,7 +2736,7 @@ function draw() {
             y: badgeY - 4,
             fill: posColor,
             "font-size": 10.5,
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           labelText,
         ),
@@ -2812,7 +2814,7 @@ function draw() {
             fill: "#090e11",
             "font-size": 11,
             "font-weight": "700",
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           money(beacon),
         ),
@@ -2825,7 +2827,7 @@ function draw() {
             y: liveY + 10,
             fill: "#090e11",
             "font-size": 9.5,
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           countdownStr,
         ),
@@ -2858,7 +2860,7 @@ function draw() {
           y: plot.top - 10,
           fill: ohlcColor,
           "font-size": 10.5,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         headerStr,
       ),
@@ -2908,7 +2910,7 @@ function draw() {
             "text-anchor": "middle",
             fill: isUtc0Daily || customExpiryMinutes !== null ? "#34d399" : "#a8afb7",
             "font-size": 10.5,
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           expiryBannerText,
         ),
@@ -2923,7 +2925,7 @@ function draw() {
             "text-anchor": "end",
             fill: "#8b9099",
             "font-size": 10.5,
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           `${expiryBannerText} →`,
         ),
@@ -3046,7 +3048,7 @@ function draw() {
           y: labelY - 7,
           fill: color,
           "font-size": 11,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         draftLabelText,
       ),
@@ -3071,7 +3073,7 @@ function draw() {
             fill: "#090e11",
             "font-size": 11,
             "font-weight": "700",
-            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+            "font-family": "General Sans, Satoshi, sans-serif",
           },
           money(draft.price),
         ),
@@ -3107,7 +3109,7 @@ function draw() {
           y: crosshair.y - 5,
           fill: "#f4ede4",
           "font-size": 11,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         money(priceAt(crosshair.y)),
       ),
@@ -3133,7 +3135,7 @@ function draw() {
           y: plot.top + 28,
           fill: "#a8afb7",
           "font-size": 12,
-          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
+          "font-family": "General Sans, Satoshi, sans-serif",
         },
         notice,
       ),

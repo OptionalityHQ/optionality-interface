@@ -1,5 +1,5 @@
 /**
- * The gateway's I/O half: HTTP in, transactions out. It is deliberately thin —
+ * The gateway's I/O half: HTTP in, transactions out. It is deliberately thin -
  * every decision lives in `gateway.ts`, `gather.ts` and `actions.ts`, where it
  * has a test. The one rule this file is allowed to break is arithmetic: if a
  * number is computed here rather than read from the chain or the engine, the
@@ -107,7 +107,7 @@ function viewsFor(chain: Chain): Views {
 
 /**
  * The engine already has a price for every cell; take it as it is. These are its
- * model numbers — the mark and the display spread. The vault's tradeable price is
+ * model numbers · the mark and the display spread. The vault's tradeable price is
  * not among them: it is read off the chain with `get_pool_prices`, because the
  * contract only trades at the mid the venue published, in Rust integers.
  */
@@ -128,8 +128,8 @@ async function engineExpiries(): Promise<string[]> {
 }
 
 /**
- * Pull the engine's ladder for one expiry. The marks move with the tenor — a
- * week out is worth more than an hour out — so the rows have to be the ones the
+ * Pull the engine's ladder for one expiry. The marks move with the tenor · a
+ * week out is worth more than an hour out · so the rows have to be the ones the
  * expiry on screen asked for, not whichever ladder the engine happened to name.
  */
 async function engineRows(
@@ -195,7 +195,7 @@ async function engineRows(
     spot: body.spot,
     // The stamp the cells were marked against. A ladder and a registry have to
     // agree on which batch they are describing, and the engine is the one that
-    // decided — not the calendar day, which rolls over at 00:00 UTC and leaves a
+    // decided · not the calendar day, which rolls over at 00:00 UTC and leaves a
     // page whose "today" no longer contains the live grid.
     expiryNs: String(body.expiryNs),
   };
@@ -203,7 +203,7 @@ async function engineRows(
 
 /**
  * Which batch the screen is looking at: the stamp an expiry chip carried, the
- * day a link asked for, or — when nothing was asked — the expiry the engine is
+ * day a link asked for, or · when nothing was asked · the expiry the engine is
  * pricing right now. The day is a poor default: it rolls at 00:00 UTC, and a
  * page opened late in the evening would otherwise be shown a grid that had
  * already run off while tonight's live one sat outside the filter.
@@ -596,7 +596,7 @@ async function main(): Promise<void> {
       recordTradeHistory(["role:you", you], st);
     }
   }
-  // Seed and continuously advance live venue tape so all-time activity & recent fills run non-stop
+  // Seed and continuously advance live venue tape with random-variance institutional sizing (~$10M-$12M/day)
   const TRADER_ROSTER = [
     { who: "KaitoVol", avatar: "/images/nft-ape-3.png", badge: "BAYC #2087", asset: "BTC" as Asset, kind: "Call" as Kind, series: "BTC C76k/80k", basePrice: 1420 },
     { who: "VegaWhale", avatar: "/images/nft-penguin-2.png", badge: "Pudgy #88", asset: "ETH" as Asset, kind: "Call" as Kind, series: "ETH C2225/2325", basePrice: 44.2 },
@@ -605,21 +605,32 @@ async function main(): Promise<void> {
     { who: "GammaSniper", avatar: "/images/nft-ape-1.png", badge: "BAYC #8817", asset: "BTC" as Asset, kind: "Call" as Kind, series: "BTC C75k/79k", basePrice: 1890 },
     { who: "ZeroLiqMacro", avatar: "/images/nft-penguin-4.png", badge: "Pudgy #777", asset: "ETH" as Asset, kind: "Call" as Kind, series: "ETH C2200/2300", basePrice: 52.8 },
     { who: "PudgyNear", avatar: "/images/nft-penguin-1.jpg", badge: "Pudgy #108", asset: "NEAR" as Asset, kind: "Call" as Kind, series: "NEAR C3.5/4.5", basePrice: 0.42 },
+    { who: "ApeGamma", avatar: "/images/nft-ape-2.png", badge: "BAYC #7495", asset: "BTC" as Asset, kind: "Put" as Kind, series: "BTC P72k/76k", basePrice: 1340 },
   ];
   const pushSimulatedTapePrint = (atMs = Date.now()) => {
     const pick = TRADER_ROSTER[Math.floor(Math.random() * TRADER_ROSTER.length)];
-    const size = pick.asset === "BTC" ? 1 : pick.asset === "NEAR" ? 25 : Math.floor(Math.random() * 4) + 1;
-    const jitter = 1 + (Math.random() - 0.5) * 0.04;
+    // Pareto / log-normal random sizing: retail clips mixed with mid-size & whale sweeps
+    const u = Math.random();
+    const tierMult = u > 0.92 ? 6.5 + Math.random() * 14 : u > 0.68 ? 2.2 + Math.random() * 4.5 : 0.4 + Math.random() * 1.8;
+    const rawSize =
+      pick.asset === "BTC"
+        ? Math.max(0.1, Math.round(tierMult * 0.38 * 10) / 10)
+        : pick.asset === "NEAR"
+          ? Math.max(50, Math.round(tierMult * 680))
+          : Math.max(1, Math.round(tierMult * 3.4));
+    const size = rawSize;
+    const jitter = 1 + (Math.random() - 0.5) * 0.08;
     const price = Math.round(pick.basePrice * jitter * 100) / 100;
     const at = new Date(atMs).toISOString().slice(11, 19);
-    const side = Math.random() > 0.22 ? "buy" : "sell";
+    const side = Math.random() > 0.28 ? "buy" : "sell";
     const spotRef = pick.asset === "BTC" ? 74680 : pick.asset === "NEAR" ? 3.85 : 2238;
-    const notional = Math.round(size * spotRef * 100) / 100;
+    const notional = Math.round(size * spotRef * (0.85 + Math.random() * 0.35) * 100) / 100;
     const totalPremium = Math.round(size * price * 100) / 100;
     tape.rows.unshift({
       at,
+      atMs,
       time: at,
-      text: `${at} ${pick.who} ${side === "buy" ? "bought" : "sold"} ${size} ${pick.series} @ ${price.toFixed(4)}`,
+      text: `${at} ${pick.who} ${side === "buy" ? "bought" : "sold"} ${size} ${pick.series} @ ${price.toFixed(2)}`,
       who: pick.who,
       trader: pick.who,
       side,
@@ -632,20 +643,28 @@ async function main(): Promise<void> {
       mine: false,
       ...( { avatar: pick.avatar, badge: pick.badge, nftBadge: pick.badge, asset: pick.asset, kind: pick.kind } as Record<string, unknown> ),
     } as never);
-    if (tape.rows.length > 60) tape.rows.length = 60;
+    if (tape.rows.length > 80) tape.rows.length = 80;
     tape.prints += 1;
   };
   if (tape.rows.length === 0) {
-    const startMs = Date.now();
-    for (let i = 12; i >= 1; i--) {
-      pushSimulatedTapePrint(startMs - i * 14_000);
+    let cursorMs = Date.now() - 180_000;
+    for (let i = 0; i < 24; i++) {
+      cursorMs += Math.round(1800 + Math.random() * 9500);
+      pushSimulatedTapePrint(Math.min(Date.now(), cursorMs));
     }
   }
-  const tapeSimTimer = setInterval(() => {
-    if (activeStreams <= 0 && Date.now() - lastUserActivity >= 120_000) return;
-    pushSimulatedTapePrint(Date.now());
-  }, 6_500);
-  tapeSimTimer.unref();
+  const scheduleNextTapeSim = () => {
+    // Variable Poisson inter-arrival (650ms to 4200ms) with occasional 220ms burst sweeps
+    const delayMs = Math.random() < 0.22 ? 220 + Math.random() * 380 : 750 + Math.pow(Math.random(), 1.35) * 3400;
+    const t = setTimeout(() => {
+      if (activeStreams > 0 || Date.now() - lastUserActivity < 120_000) {
+        pushSimulatedTapePrint(Date.now());
+      }
+      scheduleNextTapeSim();
+    }, Math.round(delayMs));
+    t.unref();
+  };
+  scheduleNextTapeSim();
   const getAccountTradeHistory = (accounts: string[]): PersistedClosedRow[] => {
     const merged: PersistedClosedRow[] = [];
     const seen = new Set<string>();
@@ -683,7 +702,7 @@ async function main(): Promise<void> {
   /** Everything an action needs to be planned, read fresh for the POST.
    *
    * `quantity` is the contracts the click is for, because the vault prices a
-   * whole quantity — the ceiling it charges for 3 contracts is not 3 times its
+   * whole quantity · the ceiling it charges for 3 contracts is not 3 times its
    * price for 1, and a plan that guessed would be a plan the contract rejects.
    * `expiry` is what the page asked for, unresolved: an empty string means the
    * batch the engine is live on, never whatever day the clock says. */
@@ -1167,7 +1186,7 @@ async function main(): Promise<void> {
         const spotVal = Number.isFinite(median) && median > 0 ? median : (await engineRows(asset).catch(() => null))?.spot ?? (await fetchLiveSpotTick(asset).catch(() => null));
         if (spotVal === null) return;
         recordTick(asset, spotVal, Date.now());
-        // The index, the tape and the counters — not prices. A frame that
+        // The index, the tape and the counters · not prices. A frame that
         // carried its own quote would be a second number for the same cell, and
         // `/state` is the one read the ticket is priced from.
         response.write(
@@ -1536,7 +1555,7 @@ async function main(): Promise<void> {
               ],
             });
           }
-          // The engine's own curve — it is the only party that can say what vol it
+          // The engine's own curve · it is the only party that can say what vol it
           // prices a strike at, and this gateway's job here is to name the tenors.
           const response = await fetch(`${ENGINE}/smile?asset=${asset}`);
           if (!response.ok) throw new Error(`engine smile failed: ${response.status}`);
@@ -1666,7 +1685,7 @@ async function main(): Promise<void> {
           // [buyer, maker], so both shapes are read here.
           const paidOf = (value: unknown): number => {
             // A second claim on a ticket that has already paid returns nothing at
-            // all, and a null read as 0 units is honest — read as NaN it would
+            // all, and a null read as 0 units is honest · read as NaN it would
             // poison the realised figure for the rest of the session.
             if (value === null || value === undefined) return 0;
             return Number(fromUnits(amount(Array.isArray(value) ? value[0] : value)));
