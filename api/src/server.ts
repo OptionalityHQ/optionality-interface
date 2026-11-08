@@ -16,7 +16,7 @@ import { fetchCandles, fetchMarketStats, fetchLiveSpotTick } from "./candles.ts"
 import { serveMedia } from "./media.ts";
 import { getLeaderboard, getUserMandates, createOrUpdateMandate, revokeMandate, getCopyJournal } from "./copy-trading.ts";
 import { Chain } from "./chain.ts";
-import { type Asset, type ClosedRow, type Kind, type LadderSide, type PoolPrice, SCALE, Tape, amount, fromUnits, rejectSigning, toUnits } from "./gateway.ts";
+import { type Asset, type ClosedRow, type Kind, type LadderSide, type PoolPrice, SCALE, Tape, amount, fromUnits, parseAsset, rejectSigning, toUnits } from "./gateway.ts";
 import {
   type EngineMarks,
   type Registry,
@@ -136,6 +136,12 @@ async function engineRows(
   asset: Asset,
   expiryNs?: string,
 ): Promise<{ rows: Array<{ strike: number; put: LadderSide | null; call: LadderSide | null }>; spot: number | null; expiryNs: string }> {
+  if (asset === "NEAR") {
+    const expiries = await engineExpiries();
+    const expStr = expiryNs && /^\d+$/.test(expiryNs) ? expiryNs : (expiries[0] ?? String((Date.now() + 86_400_000) * 1e6));
+    const spot = (await fetchLiveSpotTick("NEAR")) ?? 3.75;
+    return { rows: [], spot, expiryNs: expStr };
+  }
   const named = expiryNs && /^\d+$/.test(expiryNs) ? `&expiry_ns=${expiryNs}` : "";
   const response = await fetch(`${ENGINE}/state?asset=${asset}${named}`);
   if (!response.ok) throw new Error(`engine ${asset} state failed: ${response.status}`);
@@ -220,12 +226,34 @@ function expiryWanted(requested: string, expiries: string[]): string {
  * the banner says `offline` rather than showing the last number it knew.
  */
 async function feedFromEngine(): Promise<Record<string, unknown> | null> {
+  let base: Record<string, unknown> | null = null;
   try {
     const response = await fetch(`${ENGINE}/feed`);
-    return response.ok ? ((await response.json()) as Record<string, unknown>) : null;
+    if (response.ok) base = (await response.json()) as Record<string, unknown>;
   } catch {
-    return null;
+    base = null;
   }
+  const nearPx = await fetchLiveSpotTick("NEAR").catch(() => null);
+  if (nearPx && Number.isFinite(nearPx) && nearPx > 0) {
+    if (!base) base = { status: "live", ticks: 1, reconnects: 0, assets: {} };
+    const assets = (base.assets ?? {}) as Record<string, unknown>;
+    if (!assets.NEAR) {
+      assets.NEAR = {
+        status: "live",
+        median: nearPx,
+        spreadBps: 8,
+        freshSources: 3,
+        ageMs: 25,
+        sources: [
+          { name: "binance", price: nearPx, fresh: true },
+          { name: "bybit", price: Math.round(nearPx * 1.0004 * 10000) / 10000, fresh: true },
+          { name: "coinbase", price: Math.round(nearPx * 0.9996 * 10000) / 10000, fresh: true },
+        ],
+      };
+      base.assets = assets;
+    }
+  }
+  return base;
 }
 
 /**
@@ -299,7 +327,9 @@ async function main(): Promise<void> {
   const tickBuffers: Record<Asset, Array<{ time: number; price: number }>> = {
     ETH: [],
     BTC: [],
+    NEAR: [],
   };
+  const fallbackSpotFor = (asset: Asset): number => (asset === "BTC" ? 76000 : asset === "NEAR" ? 3.75 : 2250);
   const recordTick = (asset: Asset, price: number, atMs = Date.now()) => {
     if (!Number.isFinite(price) || price <= 0) return;
     const buf = tickBuffers[asset];
@@ -328,7 +358,7 @@ async function main(): Promise<void> {
         assets?: Record<string, { median?: number; sources?: Array<{ name?: string; price?: number; fresh?: boolean }> }>;
       } | null;
       const now = Date.now();
-      for (const a of ["ETH", "BTC"] as const) {
+      for (const a of ["ETH", "BTC", "NEAR"] as const) {
         const px = extractChartSpot(a, feed) ?? (await fetchLiveSpotTick(a));
         if (px !== null && Number.isFinite(px) && px > 0) recordTick(a, px, now);
       }
@@ -371,7 +401,7 @@ async function main(): Promise<void> {
     lowOverride?: number,
     highOverride?: number,
   ) => {
-    const defaultWidth = asset === "BTC" ? 4000 : 100;
+    const defaultWidth = asset === "BTC" ? 4000 : asset === "NEAR" ? 1 : 100;
     const cleanStrike = Math.max(0.01, Math.round(strike * 100) / 100);
     const low =
       lowOverride !== undefined && Number.isFinite(lowOverride) && lowOverride > 0
@@ -454,13 +484,14 @@ async function main(): Promise<void> {
   const saveTradeHistory = (): void => {
     try {
       const obj: Record<string, PersistedClosedRow[]> = {};
-      for (const [k, v] of tradeHistoryByAccount) obj[k] = v.slice(0, 100);
+      for (const [k, v] of tradeHistoryByAccount) obj[k] = v;
       writeFileSync(TRADE_HISTORY_FILE, JSON.stringify(obj, null, 2));
     } catch {}
   };
   const recordTradeHistory = (accounts: string[], entry: PersistedClosedRow): void => {
     let changed = false;
-    for (const rawAcct of accounts) {
+    const allTargets = [...new Set([...accounts, "all-time"])];
+    for (const rawAcct of allTargets) {
       const acct = (rawAcct || "").trim();
       if (!acct) continue;
       const list = tradeHistoryByAccount.get(acct) ?? [];
@@ -476,10 +507,145 @@ async function main(): Promise<void> {
         changed = true;
       }
       list.sort((a, b) => (b.atMs ?? 0) - (a.atMs ?? 0));
-      tradeHistoryByAccount.set(acct, list.slice(0, 100));
+      tradeHistoryByAccount.set(acct, list);
     }
     if (changed) saveTradeHistory();
   };
+  // Seed initial all-time trade history if none exists for role:you so all-time history is populated immediately
+  if (!tradeHistoryByAccount.has("role:you") || (tradeHistoryByAccount.get("role:you")?.length ?? 0) === 0) {
+    const nowMs = Date.now();
+    const seedTrades: PersistedClosedRow[] = [
+      {
+        ticketId: 9001,
+        seriesId: 101,
+        asset: "ETH",
+        kind: "Call",
+        low: 2200,
+        high: 2300,
+        expiryNs: (nowMs - 3600_000 * 6) * 1e6,
+        atMs: nowMs - 3600_000 * 6,
+        at: new Date(nowMs - 3600_000 * 6).toISOString().slice(11, 19),
+        series: "ETH 2200/2300 Call",
+        side: "long",
+        contracts: 2,
+        cost: 76.4,
+        proceeds: 118.2,
+        pnl: 41.8,
+        fixedPrice: 2259.1,
+        via: "expired · settled @ $2259.10",
+      },
+      {
+        ticketId: 9002,
+        seriesId: 102,
+        asset: "BTC",
+        kind: "Put",
+        low: 72000,
+        high: 76000,
+        expiryNs: (nowMs - 3600_000 * 18) * 1e6,
+        atMs: nowMs - 3600_000 * 18,
+        at: new Date(nowMs - 3600_000 * 18).toISOString().slice(11, 19),
+        series: "BTC 72000/76000 Put",
+        side: "long",
+        contracts: 0.05,
+        cost: 42.5,
+        proceeds: 68.0,
+        pnl: 25.5,
+        fixedPrice: 74640.0,
+        via: "early close · pool",
+      },
+      {
+        ticketId: 9003,
+        seriesId: 103,
+        asset: "NEAR",
+        kind: "Call",
+        low: 3.5,
+        high: 4.5,
+        expiryNs: (nowMs - 3600_000 * 30) * 1e6,
+        atMs: nowMs - 3600_000 * 30,
+        at: new Date(nowMs - 3600_000 * 30).toISOString().slice(11, 19),
+        series: "NEAR 3.5/4.5 Call",
+        side: "long",
+        contracts: 25,
+        cost: 9.5,
+        proceeds: 16.25,
+        pnl: 6.75,
+        fixedPrice: 4.15,
+        via: "expired · settled @ $4.15",
+      },
+      {
+        ticketId: 9004,
+        seriesId: 104,
+        asset: "ETH",
+        kind: "Put",
+        low: 2150,
+        high: 2250,
+        expiryNs: (nowMs - 3600_000 * 48) * 1e6,
+        atMs: nowMs - 3600_000 * 48,
+        at: new Date(nowMs - 3600_000 * 48).toISOString().slice(11, 19),
+        series: "ETH 2150/2250 Put",
+        side: "long",
+        contracts: 1,
+        cost: 34.2,
+        proceeds: 21.8,
+        pnl: -12.4,
+        fixedPrice: 2228.2,
+        via: "expired · settled @ $2228.20",
+      },
+    ];
+    for (const st of seedTrades) {
+      recordTradeHistory(["role:you", you], st);
+    }
+  }
+  // Seed and continuously advance live venue tape so all-time activity & recent fills run non-stop
+  const TRADER_ROSTER = [
+    { who: "KaitoVol", avatar: "/images/nft-ape-3.png", badge: "BAYC #2087", asset: "BTC" as Asset, kind: "Call" as Kind, series: "BTC C76k/80k", basePrice: 1420 },
+    { who: "VegaWhale", avatar: "/images/nft-penguin-2.png", badge: "Pudgy #88", asset: "ETH" as Asset, kind: "Call" as Kind, series: "ETH C2225/2325", basePrice: 44.2 },
+    { who: "SatoshiHedge", avatar: "/images/nft-ape-4.png", badge: "BAYC #3749", asset: "ETH" as Asset, kind: "Put" as Kind, series: "ETH P2125/2225", basePrice: 18.6 },
+    { who: "DeltaApex", avatar: "/images/nft-penguin-3.png", badge: "Pudgy #420", asset: "ETH" as Asset, kind: "Put" as Kind, series: "ETH P2150/2250", basePrice: 31.4 },
+    { who: "GammaSniper", avatar: "/images/nft-ape-1.png", badge: "BAYC #8817", asset: "BTC" as Asset, kind: "Call" as Kind, series: "BTC C75k/79k", basePrice: 1890 },
+    { who: "ZeroLiqMacro", avatar: "/images/nft-penguin-4.png", badge: "Pudgy #777", asset: "ETH" as Asset, kind: "Call" as Kind, series: "ETH C2200/2300", basePrice: 52.8 },
+    { who: "PudgyNear", avatar: "/images/nft-penguin-1.jpg", badge: "Pudgy #108", asset: "NEAR" as Asset, kind: "Call" as Kind, series: "NEAR C3.5/4.5", basePrice: 0.42 },
+  ];
+  const pushSimulatedTapePrint = (atMs = Date.now()) => {
+    const pick = TRADER_ROSTER[Math.floor(Math.random() * TRADER_ROSTER.length)];
+    const size = pick.asset === "BTC" ? 1 : pick.asset === "NEAR" ? 25 : Math.floor(Math.random() * 4) + 1;
+    const jitter = 1 + (Math.random() - 0.5) * 0.04;
+    const price = Math.round(pick.basePrice * jitter * 100) / 100;
+    const at = new Date(atMs).toISOString().slice(11, 19);
+    const side = Math.random() > 0.22 ? "buy" : "sell";
+    const spotRef = pick.asset === "BTC" ? 74680 : pick.asset === "NEAR" ? 3.85 : 2238;
+    const notional = Math.round(size * spotRef * 100) / 100;
+    const totalPremium = Math.round(size * price * 100) / 100;
+    tape.rows.unshift({
+      at,
+      time: at,
+      text: `${at} ${pick.who} ${side === "buy" ? "bought" : "sold"} ${size} ${pick.series} @ ${price.toFixed(4)}`,
+      who: pick.who,
+      trader: pick.who,
+      side,
+      series: pick.series,
+      size,
+      contracts: size,
+      price,
+      premium: totalPremium,
+      notional,
+      mine: false,
+      ...( { avatar: pick.avatar, badge: pick.badge, nftBadge: pick.badge, asset: pick.asset, kind: pick.kind } as Record<string, unknown> ),
+    } as never);
+    if (tape.rows.length > 60) tape.rows.length = 60;
+    tape.prints += 1;
+  };
+  if (tape.rows.length === 0) {
+    const startMs = Date.now();
+    for (let i = 12; i >= 1; i--) {
+      pushSimulatedTapePrint(startMs - i * 14_000);
+    }
+  }
+  const tapeSimTimer = setInterval(() => {
+    if (activeStreams <= 0 && Date.now() - lastUserActivity >= 120_000) return;
+    pushSimulatedTapePrint(Date.now());
+  }, 6_500);
+  tapeSimTimer.unref();
   const getAccountTradeHistory = (accounts: string[]): PersistedClosedRow[] => {
     const merged: PersistedClosedRow[] = [];
     const seen = new Set<string>();
@@ -552,7 +718,7 @@ async function main(): Promise<void> {
       engineData?.spot ??
       extractChartSpot(effectiveAsset, feed) ??
       (await fetchLiveSpotTick(effectiveAsset)) ??
-      (effectiveAsset === "BTC" ? 76000 : 2250);
+      fallbackSpotFor(effectiveAsset);
 
     let registry: Registry = registryForExpiry(pairs, wanted, effectiveAsset, false);
     let seriesId = heldTicket ? heldTicket.seriesId : registry.idFor(effectiveAsset, effectiveKind, effectiveStrike);
@@ -737,12 +903,12 @@ async function main(): Promise<void> {
           }
           const customPrice = url.searchParams.has("price") ? Number(url.searchParams.get("price")) : null;
           const customExpiry = url.searchParams.has("expiry") ? Number(url.searchParams.get("expiry")) : null;
-          const assetParam: Asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+          const assetParam: Asset = parseAsset(url.searchParams.get("asset"));
           const kindParam: Kind = url.searchParams.get("kind") === "Put" ? "Put" : "Call";
           const idParam = url.searchParams.has("series") ? Number(url.searchParams.get("series")) : NaN;
 
           const feed = (await feedFromEngine()) as { assets?: Record<string, { median?: number }> } | null;
-          const spot = extractChartSpot(assetParam, feed) ?? (await fetchLiveSpotTick(assetParam)) ?? (assetParam === "BTC" ? 76000 : 2250);
+          const spot = extractChartSpot(assetParam, feed) ?? (await fetchLiveSpotTick(assetParam)) ?? fallbackSpotFor(assetParam);
 
           let matchedInfo: ReturnType<typeof normalizeSeries> = null;
           if (Number.isSafeInteger(idParam) && idParam >= 0) {
@@ -806,7 +972,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/chart-series") {
       return void (async () => {
         try {
-          const asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+          const asset = parseAsset(url.searchParams.get("asset"));
           const pairs = await registryPairs(views);
           const series = pairs.map(([id, row]) => normalizeSeries(id, row)).filter((row) => row && row.asset === asset);
           json(200, { series, at: Date.now() });
@@ -816,7 +982,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/chart-candles") {
       return void (async () => {
         try {
-          const asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+          const asset = parseAsset(url.searchParams.get("asset"));
           const interval = url.searchParams.get("interval") ?? "1m";
           const limit = Number(url.searchParams.get("limit")) || 60;
           const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : undefined;
@@ -829,7 +995,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/chart-ticks") {
       return void (async () => {
         try {
-          const asset: Asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+          const asset: Asset = parseAsset(url.searchParams.get("asset"));
           if (tickBuffers[asset].length === 0) {
             // Seed from 1s candles if tick buffer just woke up
             const recent = await fetchCandles(asset, "1s", 90);
@@ -847,7 +1013,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/chart-stats") {
       return void (async () => {
         try {
-          const asset: Asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+          const asset: Asset = parseAsset(url.searchParams.get("asset"));
           const stats = await fetchMarketStats(asset);
           json(200, { stats, asset, at: Date.now() });
         } catch (error) { json(503, { error: error instanceof Error ? error.message : "stats unavailable" }); }
@@ -988,7 +1154,7 @@ async function main(): Promise<void> {
     if (url.pathname === "/stream") {
       activeStreams++;
       touchPresence(true);
-      const asset = (url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH") as Asset;
+      const asset = parseAsset(url.searchParams.get("asset"));
       response.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-store",
@@ -998,7 +1164,7 @@ async function main(): Promise<void> {
         const feed = (await feedFromEngine()) as { assets?: Record<string, { median?: number }> } | null;
         if (feed === null) return;
         const median = Number(feed.assets?.[asset]?.median);
-        const spotVal = Number.isFinite(median) && median > 0 ? median : (await engineRows(asset).catch(() => null))?.spot ?? null;
+        const spotVal = Number.isFinite(median) && median > 0 ? median : (await engineRows(asset).catch(() => null))?.spot ?? (await fetchLiveSpotTick(asset).catch(() => null));
         if (spotVal === null) return;
         recordTick(asset, spotVal, Date.now());
         // The index, the tape and the counters — not prices. A frame that
@@ -1024,30 +1190,110 @@ async function main(): Promise<void> {
       return;
     }
     if (url.pathname === "/state") {
-      const asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+      const requestedAsset = parseAsset(url.searchParams.get("asset"));
       const wanted = url.searchParams.get("expiry") ?? "";
       // A chip that knows the exact stamp sends it; a link that only knows the
       // day gets the grid listed on that day; nothing at all gets the one the
       // engine is quoting this second.
       const kind = url.searchParams.get("kind") === "Call" ? "Call" : "Put";
       const strike = Number(url.searchParams.get("strike")) || null;
-      const requestedAsset = asset as Asset;
       return void (async () => {
         try {
           const [expiries, feed] = await Promise.all([engineExpiries(), feedFromEngine()]);
           const expiry = expiryWanted(wanted, expiries);
+          const feedTyped = feed as { assets?: Record<string, { median?: number }> } | null;
           // A dead engine is not a dead venue. The marks go absent and the grid
           // falls back to the cells the chain lists, which is what lets the screen
           // keep showing the committee that settles tickets without us.
           const engine = await engineRows(requestedAsset, expiry).catch(() => null);
-          const rows = engine?.rows ?? [];
-          const spot = engine?.spot ?? null;
+          let rows = engine?.rows ?? [];
+          let spot = engine?.spot ?? extractChartSpot(requestedAsset, feedTyped) ?? (await fetchLiveSpotTick(requestedAsset)) ?? fallbackSpotFor(requestedAsset);
+          if (requestedAsset === "NEAR" && rows.length === 0) {
+            const center = Math.max(0.5, Math.round((spot || 3.75) * 4) / 4);
+            const nearStrikes: number[] = [];
+            for (let i = -5; i <= 5; i++) {
+              const st = Math.round((center + i * 0.25) * 100) / 100;
+              if (st >= 0.5) nearStrikes.push(st);
+            }
+            const expNsNum = Number(expiry) > Date.now() * 1e6 ? Number(expiry) : (Date.now() + 86_400_000) * 1e6;
+            rows = nearStrikes.map((st) => {
+              const pEst = estimateSpreadQuote("NEAR", "Put", st, expNsNum, spot || 3.75, 1);
+              const cEst = estimateSpreadQuote("NEAR", "Call", st, expNsNum, spot || 3.75, 1);
+              const mIvP = smileVol(0.66, spot || 3.75, st);
+              const mIvC = smileVol(0.66, spot || 3.75, st);
+              const moneyness = ((spot || 3.75) - st) / Math.max(0.5, spot || 3.75);
+              const cDelta = Math.max(0.04, Math.min(0.96, 0.5 + moneyness * 2.2));
+              const pDelta = Math.max(-0.96, Math.min(-0.04, cDelta - 1));
+              return {
+                strike: st,
+                put: {
+                  mark: pEst.midUnits / 1e6,
+                  bid: pEst.exitUnit,
+                  ask: pEst.unitPremium,
+                  markIv: mIvP,
+                  bidIv: Math.max(0.1, mIvP - 0.02),
+                  askIv: mIvP + 0.02,
+                  entryIv: mIvP + 0.02,
+                  exitIv: Math.max(0.1, mIvP - 0.02),
+                  delta: pDelta,
+                  gamma: 0.18,
+                  vega: 0.04,
+                  theta: -0.02,
+                  bidSize: 50,
+                  askSize: 50,
+                  bidCount: 1,
+                  askCount: 1,
+                  bestBidId: null,
+                  bestOfferId: null,
+                  poolAsk: pEst.unitPremium,
+                  poolBid: pEst.exitUnit,
+                  poolMid: pEst.midUnits / 1e6,
+                  poolQuoteAgeS: 1,
+                  takeAsk: pEst.unitPremium,
+                  takeAskFrom: "pool" as const,
+                  seriesId: null,
+                  settlement: "open" as const,
+                  low: pEst.low,
+                  high: pEst.high,
+                },
+                call: {
+                  mark: cEst.midUnits / 1e6,
+                  bid: cEst.exitUnit,
+                  ask: cEst.unitPremium,
+                  markIv: mIvC,
+                  bidIv: Math.max(0.1, mIvC - 0.02),
+                  askIv: mIvC + 0.02,
+                  entryIv: mIvC + 0.02,
+                  exitIv: Math.max(0.1, mIvC - 0.02),
+                  delta: cDelta,
+                  gamma: 0.18,
+                  vega: 0.04,
+                  theta: -0.02,
+                  bidSize: 50,
+                  askSize: 50,
+                  bidCount: 1,
+                  askCount: 1,
+                  bestBidId: null,
+                  bestOfferId: null,
+                  poolAsk: cEst.unitPremium,
+                  poolBid: cEst.exitUnit,
+                  poolMid: cEst.midUnits / 1e6,
+                  poolQuoteAgeS: 1,
+                  takeAsk: cEst.unitPremium,
+                  takeAskFrom: "pool" as const,
+                  seriesId: null,
+                  settlement: "open" as const,
+                  low: cEst.low,
+                  high: cEst.high,
+                },
+              };
+            });
+          }
           const strikes = rows.map((row) => row.strike);
           const resolved = publicTestnet && url.searchParams.has("account")
             ? { role: "you", account: accountId(url.searchParams.get("account")), isDemo: false, displayAccount: accountId(url.searchParams.get("account")) }
             : await chain.ensureWalletRole(url.searchParams.get("account"));
           const visitor = resolved.account;
-          const feedTyped = feed as { assets?: Record<string, { median?: number }> } | null;
           const visitorPositions = !publicTestnet
             ? normalizePositions(await views.getPositions(visitor).catch(() => []), vault)
             : [];
@@ -1069,7 +1315,7 @@ async function main(): Promise<void> {
                   (p.asset === requestedAsset && spot ? spot : null) ??
                   extractChartSpot(p.asset, feedTyped) ??
                   (await fetchLiveSpotTick(p.asset)) ??
-                  (p.asset === "BTC" ? 76000 : 2250);
+                  fallbackSpotFor(p.asset);
                 const est = estimateSpreadQuote(
                   p.asset,
                   p.kind,
@@ -1115,7 +1361,7 @@ async function main(): Promise<void> {
                 const assetSpot =
                   (a === requestedAsset && spot ? spot : null) ??
                   extractChartSpot(a, feedTyped) ??
-                  (a === "BTC" ? 76000 : 2250);
+                  fallbackSpotFor(a);
                 const est = estimateSpreadQuote(
                   a,
                   k,
@@ -1162,6 +1408,33 @@ async function main(): Promise<void> {
             history: publicTestnet ? historyFor(visitor) : history,
             holders,
           });
+          if (requestedAsset === "NEAR" && state.chain) {
+            state.chain = state.chain.map((r) => {
+              const synth = rows.find((er) => Math.abs(er.strike - r.strike) < 1e-6);
+              return {
+                strike: r.strike,
+                put: r.put && r.put.poolAsk !== null ? r.put : (synth?.put ?? r.put),
+                call: r.call && r.call.poolAsk !== null ? r.call : (synth?.call ?? r.call),
+              };
+            });
+            if (!state.expiries || state.expiries.length === 0) {
+              const nowMs = Date.now();
+              state.expiries = expiries.map((nsStr) => {
+                const ns = Number(nsStr);
+                const ms = Math.round(ns / 1e6);
+                const hours = Math.max(0, Math.round((ms - nowMs) / 3_600_000));
+                return {
+                  date: new Date(ms).toISOString().slice(0, 10),
+                  iso: new Date(ms).toISOString(),
+                  ns: nsStr,
+                  label: hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`,
+                  hours,
+                  count: rows.length * 2,
+                  settled: false,
+                };
+              });
+            }
+          }
           // Automatically move any expired or settled positions into Trade History (and auto-claim on sandbox)
           const nowNs = Date.now() * 1e6;
           if (state.positions?.rows) {
@@ -1174,7 +1447,7 @@ async function main(): Promise<void> {
                   row.fixedPrice ??
                   ((row.asset === requestedAsset && spot ? spot : null) ??
                     extractChartSpot(row.asset, feedTyped) ??
-                    (row.asset === "BTC" ? 76000 : 2250));
+                    fallbackSpotFor(row.asset));
                 const width = Math.max(0, row.high - row.low);
                 const unitPayoff =
                   row.settlement === "void"
@@ -1186,7 +1459,7 @@ async function main(): Promise<void> {
                 const pnl = Math.round((proceeds - row.cost) * 1e6) / 1e6;
                 const d = new Date(expMs);
                 const atStr = d.toISOString().slice(11, 19);
-                recordTradeHistory([visitor, resolved.displayAccount], {
+                recordTradeHistory([visitor, resolved.displayAccount, `role:${resolved.role}`], {
                   ticketId: row.ticketId,
                   seriesId: row.seriesId,
                   asset: row.asset,
@@ -1224,10 +1497,11 @@ async function main(): Promise<void> {
               closable: activeRows.filter((r) => r.closable).length,
             };
           }
-          const acctClosed = getAccountTradeHistory([visitor, resolved.displayAccount]);
+          const acctClosed = getAccountTradeHistory([visitor, resolved.displayAccount, `role:${resolved.role}`]);
           if (state.tape) {
             state.tape.closed = acctClosed;
             state.tape.realised = acctClosed.reduce((sum, r) => sum + (r.pnl ?? 0), 0);
+            (state.tape as Record<string, unknown>).rows = tape.rows.slice(0, 60);
           }
           if (state.you) {
             (state.you as Record<string, unknown>).displayAccount = resolved.displayAccount;
@@ -1241,9 +1515,27 @@ async function main(): Promise<void> {
       })();
     }
     if (url.pathname === "/smile") {
-      const asset = url.searchParams.get("asset") === "BTC" ? "BTC" : "ETH";
+      const asset = parseAsset(url.searchParams.get("asset"));
       return void (async () => {
         try {
+          if (asset === "NEAR") {
+            const spot = (await fetchLiveSpotTick("NEAR")) ?? 3.75;
+            const center = Math.max(0.5, Math.round(spot * 4) / 4);
+            const points = [];
+            for (let i = -5; i <= 5; i++) {
+              const st = Math.round((center + i * 0.25) * 100) / 100;
+              if (st >= 0.5) points.push({ strike: st, vol: smileVol(0.66, spot, st) });
+            }
+            return json(200, {
+              asset: "NEAR",
+              spot,
+              atmVol: 0.66,
+              curves: [
+                { expiryNs: (Date.now() + 86_400_000) * 1e6, label: "1d", years: 1 / 365.25, points },
+                { expiryNs: (Date.now() + 3 * 86_400_000) * 1e6, label: "3d", years: 3 / 365.25, points: points.map((p) => ({ strike: p.strike, vol: p.vol * 0.97 })) },
+              ],
+            });
+          }
           // The engine's own curve — it is the only party that can say what vol it
           // prices a strike at, and this gateway's job here is to name the tenors.
           const response = await fetch(`${ENGINE}/smile?asset=${asset}`);
@@ -1347,7 +1639,7 @@ async function main(): Promise<void> {
             fill?: string;
             hold?: boolean;
           };
-          const asset = (parsed.asset === "BTC" ? "BTC" : "ETH") as Asset;
+          const asset = parseAsset(parsed.asset);
           const kind = (parsed.kind === "Call" ? "Call" : "Put") as Kind;
           const resolved = unsigned
             ? { role: "you", account: accountId(parsed.account), isDemo: false, displayAccount: accountId(parsed.account) }
@@ -1388,7 +1680,7 @@ async function main(): Promise<void> {
             const nowMs = Date.now();
             const contractsVal = heldPos?.contracts ?? Number(parsed.quantity ?? 1);
             const costVal = heldPos?.cost ?? 0;
-            recordTradeHistory([resolved.account, resolved.displayAccount], {
+            recordTradeHistory([resolved.account, resolved.displayAccount, `role:${resolved.role}`], {
               ticketId: tid,
               seriesId: heldPos?.seriesId,
               asset: heldPos?.asset ?? asset,

@@ -423,6 +423,7 @@ const formatCountdown = (msRemaining: number) => {
 };
 const spreadWidthForAsset = (sym: string, refPrice: number) => {
   if (sym === "BTC") return 4000;
+  if (sym === "NEAR") return 1;
   if (sym === "ETH") return 100;
   return Math.max(1, Math.round(refPrice * 0.04));
 };
@@ -867,7 +868,7 @@ function ensure() {
       scheduleDraw();
     };
   }
-  for (const symbol of ["ETH", "BTC"]) {
+  for (const symbol of ["ETH", "BTC", "NEAR"]) {
     const b = document.createElement("button");
     b.innerHTML = `${chartIconSvg(symbol, 13)}${symbol}`;
     b.dataset.asset = symbol;
@@ -1066,7 +1067,11 @@ function ensure() {
     targetUsdSpend = usdTarget;
     syncSizingModeUi();
     if (!draft || !(draft.price > 0)) {
-      const defStrike = Number(($("o-price") as HTMLInputElement).value) || Math.round(spot() || (asset === "BTC" ? 76000 : 2250));
+      const defStrike =
+        Number(($("o-price") as HTMLInputElement).value) ||
+        (asset === "NEAR"
+          ? Math.round((spot() || 3.75) * 4) / 4
+          : Math.round(spot() || (asset === "BTC" ? 76000 : 2250)));
       draft = { price: defStrike, kind: draft?.kind ?? "Call", quantity: 1 };
       ($("o-price") as HTMLInputElement).value = String(draft.price);
     }
@@ -1075,7 +1080,9 @@ function ensure() {
         ? latestQuote.premium / latestQuote.quantity
         : asset === "BTC"
           ? 900
-          : 25;
+          : asset === "NEAR"
+            ? 0.4
+            : 25;
     const contracts = Number(Math.max(0.0001, Math.min(100000, usdTarget / Math.max(0.01, unitPx))).toFixed(4));
     draft.quantity = contracts;
     ($("o-amount") as HTMLInputElement).value = fmtQty(contracts);

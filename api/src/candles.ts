@@ -19,8 +19,15 @@ function ttlForInterval(interval: string): number {
 
 const spotTickCache = new Map<string, { price: number; fetchedAt: number }>();
 
+function normalizeCandleAsset(asset: string): "ETH" | "BTC" | "NEAR" {
+  const up = String(asset || "").toUpperCase();
+  if (up === "BTC") return "BTC";
+  if (up === "NEAR") return "NEAR";
+  return "ETH";
+}
+
 export async function fetchLiveSpotTick(asset: string): Promise<number | null> {
-  const normAsset: "ETH" | "BTC" = asset.toUpperCase() === "BTC" ? "BTC" : "ETH";
+  const normAsset = normalizeCandleAsset(asset);
   const cached = spotTickCache.get(normAsset);
   if (cached && Date.now() - cached.fetchedAt < 450) {
     return cached.price;
@@ -49,7 +56,7 @@ export async function fetchCandles(
   _fallbackSpot: number | null = null,
   endTimeMs?: number,
 ): Promise<Candle[]> {
-  const normAsset = asset.toUpperCase() === "BTC" ? "BTC" : "ETH";
+  const normAsset = normalizeCandleAsset(asset);
   const lowerInterval = String(interval || "1m").toLowerCase();
   const mappedInterval =
     lowerInterval === "7d"
@@ -169,7 +176,7 @@ export async function fetchCandles(
 }
 
 export interface MarketStats24h {
-  asset: "ETH" | "BTC";
+  asset: "ETH" | "BTC" | "NEAR";
   lastPrice: number;
   change24h: number;
   changePct24h: number;
@@ -183,7 +190,7 @@ export interface MarketStats24h {
 const statsCache = new Map<string, { data: MarketStats24h; fetchedAt: number }>();
 
 export async function fetchMarketStats(asset: string): Promise<MarketStats24h | null> {
-  const normAsset: "ETH" | "BTC" = asset.toUpperCase() === "BTC" ? "BTC" : "ETH";
+  const normAsset = normalizeCandleAsset(asset);
   const cached = statsCache.get(normAsset);
   if (cached && Date.now() - cached.fetchedAt < 4_000) {
     return cached.data;
