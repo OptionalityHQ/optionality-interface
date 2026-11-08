@@ -3,26 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#060807">
-<title>Optionality — Options Without Liquidation</title>
+<meta name="theme-color" content="#0b0e13">
+<title>Optionality | Options Without Liquidation</title>
 <meta name="description" content="No-slippage, zero-liquidation options on NEAR. Trade against an automated LP pool with 100% locked payouts, any-time expiry, and multi-oracle consensus.">
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&f[]=general-sans@400,500,600,700&f[]=cabinet-grotesk@500,700,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 <style>
 @font-face{font-family:Geist;src:url('/fonts/geist-latin.woff2') format('woff2');font-weight:400 700;font-display:swap}
 @font-face{font-family:'Geist Mono';src:url('/fonts/geist-mono-latin.woff2') format('woff2');font-weight:400 600;font-display:swap}
 
 :root{
   color-scheme:dark;
-  --ground:#060807;
-  --surface:#0c0e0d;
-  --ink:#f3efe6;
-  --muted:rgba(243,239,230,.72);
-  --quiet:rgba(243,239,230,.52);
+  --ground:#0b0e13;
+  --surface:#10141b;
+  --ink:#f1f5f9;
+  --muted:rgba(241,245,249,.74);
+  --quiet:rgba(139,155,176,.85);
   --line:rgba(255,255,255,.09);
   --line-bright:rgba(255,255,255,.18);
-  --lime:#c6f24e;
-  --lime-dim:rgba(198,242,78,.14);
-  --loss:#e5484d;
+  --lime:#22c55e;
+  --lime-dim:rgba(34,197,94,.14);
+  --loss:#ff5a65;
   --gutter:clamp(20px,4vw,64px);
+  --sans:"Satoshi","Plus Jakarta Sans","Geist",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Geist Mono",ui-monospace,monospace;
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -30,7 +37,7 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}
 body{
   background:var(--ground);
   color:var(--ink);
-  font:15px/1.65 Geist,system-ui,sans-serif;
+  font:15px/1.65 var(--sans);
   overflow-x:clip;
   -webkit-font-smoothing:antialiased;
   font-variant-numeric:tabular-nums;

@@ -83,7 +83,7 @@ let pinch: {
   anchorTime: number;
   anchorPrice: number;
 } | null = null;
-const COLOR = { Call: "#c6f24e", Put: "#e5484d" };
+const COLOR = { Call: "#22c55e", Put: "#ff5a65" };
 type MarketStats = {
   lastPrice: number;
   changePct24h: number;
@@ -322,7 +322,7 @@ function openPositionPopup(pos: any, anchor?: { x: number; y: number }) {
     pos.exitUnit ?? pos.mark ?? Number(pos.value ?? 0) / contracts,
   );
   const exitTotal = Number(pos.value ?? exitUnit * contracts);
-  const pnlColor = pnl >= 0 ? "#c6f24e" : "#e5484d";
+  const pnlColor = pnl >= 0 ? "#34d399" : "#ff5a65";
   const badgeCls = kind === "Call" ? "call" : "put";
 
   popup.innerHTML = `
@@ -685,101 +685,101 @@ function ensure() {
   const root = document.getElementById("positions-chart");
   if (!root || root.childElementCount) return;
   root.innerHTML = `<style>
-  .chart-container{display:flex;flex-direction:column;height:100%;min-height:0;background:transparent;border:0;border-radius:0;padding:8px 10px 10px;color:#f4ede4;font-family:var(--sans,'Geist',system-ui,sans-serif);gap:6px;overflow-y:auto}
-  .chart-stats{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;margin:0;font:12px 'Geist Mono',ui-monospace,monospace;color:#a8afb7}
-  .chart-stats b{color:#f4ede4;font-weight:560;font-size:18px}
-  .chart-stats .up{color:#c6f24e}.chart-stats .down{color:#e5484d}
+  .chart-container{display:flex;flex-direction:column;height:100%;min-height:0;background:transparent;border:0;border-radius:0;padding:8px 12px 10px;color:#f1f5f9;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',system-ui,sans-serif);font-variant-numeric:tabular-nums;gap:6px;overflow-y:auto}
+  .chart-stats{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;margin:0;font:500 12.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;color:#8b9bb0}
+  .chart-stats b{color:#f1f5f9;font-weight:600;font-size:18px}
+  .chart-stats .up{color:#34d399}.chart-stats .down{color:#ff5a65}
   .chart-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .chart-group{display:flex;gap:2px}.chart-nav button,.chart-nav select,.chart-nearest{background:#12191f;border:1px solid #2a3441;border-radius:5px;padding:6px 10px;color:#a8afb7;font:500 12px 'Geist Mono',ui-monospace,monospace;cursor:pointer}
-  .chart-nav button.active{color:#f4ede4;background:#28323c}.chart-nav button:hover{color:#fff}
-  .chart-hud{margin-left:auto;font:12px 'Geist Mono',ui-monospace,monospace;color:#a8afb7;background:#12191f;border:1px solid #2a3441;border-radius:999px;padding:4px 10px;cursor:pointer}
-  .chart-hud.live{color:#c6f24e;border-color:rgba(198,242,78,.35);background:rgba(198,242,78,.08)}
-  .chart-workspace{display:grid;grid-template-columns:minmax(0,1fr) 295px;gap:14px;min-height:360px;flex:1}.chart-workspace.editing{grid-template-columns:minmax(0,1fr) 295px}
-  .chart-stage{position:relative;flex:1;height:auto;min-height:340px;min-width:0;touch-action:none;user-select:none;cursor:crosshair;overflow:hidden;outline:none;border:1px solid #1b242c;border-radius:6px;background:#0a0f14}
-  .chart-stage:focus-visible{outline:1px solid #8b9099}.chart-stage.dragging{cursor:grabbing}.chart-stage canvas{display:block;width:100%;height:100%;pointer-events:none}
-  .chart-pos-popup{position:absolute;z-index:20;width:308px;background:#10171f;border:1px solid #334150;border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.68);padding:11px 13px;font:11.5px 'Geist Mono',ui-monospace,monospace;color:#f4ede4;user-select:none}
+  .chart-group{display:flex;gap:3px}.chart-nav button,.chart-nav select,.chart-nearest{background:#161c26;border:1px solid #2b3545;border-radius:6px;padding:6px 11px;color:#8b9bb0;font:500 12.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;cursor:pointer;transition:all .15s}
+  .chart-nav button.active{color:#f1f5f9;background:#242e3e;border-color:#3b495e;font-weight:600}.chart-nav button:hover{color:#fff}
+  .chart-hud{margin-left:auto;font:600 12px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);color:#8b9bb0;background:#161c26;border:1px solid #2b3545;border-radius:999px;padding:4px 11px;cursor:pointer}
+  .chart-hud.live{color:#34d399;border-color:rgba(34,197,94,.38);background:rgba(34,197,94,.1)}
+  .chart-workspace{display:grid;grid-template-columns:minmax(0,1fr) 304px;gap:14px;min-height:360px;flex:1}.chart-workspace.editing{grid-template-columns:minmax(0,1fr) 304px}
+  .chart-stage{position:relative;flex:1;height:auto;min-height:340px;min-width:0;touch-action:none;user-select:none;cursor:crosshair;overflow:hidden;outline:none;border:1px solid #1f2733;border-radius:8px;background:#0e1218}
+  .chart-stage:focus-visible{outline:1px solid #8b9bb0}.chart-stage.dragging{cursor:grabbing}.chart-stage canvas{display:block;width:100%;height:100%;pointer-events:none}
+  .chart-pos-popup{position:absolute;z-index:20;width:312px;background:#10141b;border:1px solid #2c3646;border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.72);padding:12px 14px;font:500 12px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-variant-numeric:tabular-nums;color:#f1f5f9;user-select:none}
   .chart-pos-popup[hidden]{display:none}
-  .cpp-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1f2a35}
-  .cpp-ticket{color:#8b9099;font-size:10.5px}
+  .cpp-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1f2733}
+  .cpp-ticket{color:#8b9bb0;font-size:11px}
   .cpp-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:8px}
   .cpp-grid div{display:flex;flex-direction:column;gap:1px}
-  .cpp-grid span{color:#8b9099;font-size:10px}
-  .cpp-grid b{color:#f4ede4;font-size:11.5px}
-  .cpp-expiry{font-size:10.5px;color:#a8afb7;background:rgba(198,242,78,.06);border:1px solid rgba(198,242,78,.2);border-radius:4px;padding:4px 7px;margin-bottom:7px}
-  .cpp-expiry b{color:#c6f24e}
-  .cpp-prompt{margin:0 0 8px;color:#d6d0c4;font-family:var(--sans,'Geist',system-ui,sans-serif);font-size:11px;line-height:1.4}
+  .cpp-grid span{color:#8b9bb0;font-size:10.5px}
+  .cpp-grid b{color:#f1f5f9;font-size:12px;font-weight:600}
+  .cpp-expiry{font-size:11px;color:#8b9bb0;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.24);border-radius:5px;padding:4px 8px;margin-bottom:8px}
+  .cpp-expiry b{color:#34d399;font-weight:600}
+  .cpp-prompt{margin:0 0 8px;color:#cbd5e1;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-size:11.5px;line-height:1.4}
   .cpp-actions{display:flex;gap:7px}
-  .cpp-btn{flex:1;padding:7px 9px;border-radius:5px;font:600 11px 'Geist Mono',ui-monospace,monospace;cursor:pointer;border:1px solid transparent}
-  .cpp-btn.close-pos{background:#e5484d;color:#fff;border-color:#e5484d}
-  .cpp-btn.close-pos:hover{background:#f2555a}
+  .cpp-btn{flex:1;padding:7px 9px;border-radius:6px;font:600 11.5px var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);cursor:pointer;border:1px solid transparent}
+  .cpp-btn.close-pos{background:#ff5a65;color:#fff;border-color:#ff5a65}
+  .cpp-btn.close-pos:hover{background:#ff7079}
   .cpp-btn.close-pos:disabled{opacity:.5;cursor:not-allowed}
-  .cpp-btn.keep-open{background:#18222d;color:#f4ede4;border-color:#2e3b48}
-  .cpp-btn.keep-open:hover{border-color:#c6f24e;color:#c6f24e}
-  .cpp-status{font-size:10.5px;color:#a8afb7;margin-top:5px;min-height:13px}
-  .chart-help{margin:2px 0 0;color:#8b9099;font-family:var(--sans,'Geist',system-ui,sans-serif);font-size:11px;line-height:1.5}
-  .chart-editor{min-width:0;border-left:1px solid #242a31;padding-left:14px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}.chart-editor>*{flex-shrink:0}.chart-editor[hidden]{display:none}
-  .chart-editor h3{font-family:var(--sans,'Geist',system-ui,sans-serif);font-size:15px;margin:0 0 2px}.chart-editor .editor-expiry{color:#c6f24e;font:11px 'Geist Mono',ui-monospace,monospace;margin:0 0 8px}
-  .chart-editor label{display:block;color:#a8afb7;font-family:var(--sans,'Geist',system-ui,sans-serif);font-size:11px;margin:8px 0 4px}
-  .chart-editor input,.chart-editor select{box-sizing:border-box;min-width:0;width:100%;padding:8px 10px;border:1px solid #3a444f;border-radius:6px;background:#12191f;color:#f4ede4;font:13px 'Geist Mono',ui-monospace,monospace}
+  .cpp-btn.keep-open{background:#161c26;color:#f1f5f9;border-color:#2b3545}
+  .cpp-btn.keep-open:hover{border-color:#22c55e;color:#34d399}
+  .cpp-status{font-size:11px;color:#8b9bb0;margin-top:5px;min-height:13px}
+  .chart-help{margin:2px 0 0;color:#8b9bb0;font-family:var(--sans,'Satoshi','Plus Jakarta Sans',sans-serif);font-size:11.5px;line-height:1.5}
+  .chart-editor{min-width:0;border-left:1px solid #1f2733;padding-left:14px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}.chart-editor>*{flex-shrink:0}.chart-editor[hidden]{display:none}
+  .chart-editor h3{font-family:var(--display,var(--sans,'Satoshi',sans-serif));font-size:15.5px;font-weight:600;margin:0 0 2px}.chart-editor .editor-expiry{color:#34d399;font:600 11.5px var(--sans,'Satoshi',sans-serif);margin:0 0 8px}
+  .chart-editor label{display:block;color:#8b9bb0;font-family:var(--sans,'Satoshi',sans-serif);font-size:11.5px;font-weight:500;margin:8px 0 4px}
+  .chart-editor input,.chart-editor select{box-sizing:border-box;min-width:0;width:100%;padding:8px 10px;border:1px solid #2b3545;border-radius:7px;background:#161c26;color:#f1f5f9;font:500 13px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums}
   .chart-editor input#o-price{font-size:15px;font-weight:600}
   .chart-expiry-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
-  .chart-expiry-chips button{flex:1;min-width:44px;padding:4px 6px;font:11px 'Geist Mono',ui-monospace,monospace;background:#12191f;border:1px solid #2c3642;border-radius:4px;color:#a8afb7;cursor:pointer}
-  .chart-expiry-chips button:hover{color:#c6f24e;border-color:#c6f24e}
-  .chart-side{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chart-side button{padding:8px;background:transparent;border:1px solid #3a444f;border-radius:6px;color:#a8afb7;cursor:pointer;font:600 12px var(--sans,'Geist',system-ui,sans-serif)}
-  .chart-side button.call-active{border-color:#c6f24e;color:#c6f24e;background:rgba(198,242,78,.08)}.chart-side button.put-active{border-color:#e5484d;color:#e5484d;background:rgba(229,72,77,.08)}
-  .chart-size-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;background:#0d1318;padding:3px;border-radius:6px;border:1px solid #26323f}
-  .chart-size-mode button{padding:5px 6px;border:0;border-radius:4px;background:transparent;color:#8b9099;font:600 11px 'Geist Mono',ui-monospace,monospace;cursor:pointer}
-  .chart-size-mode button.active{background:rgba(198,242,78,0.14);color:#c6f24e;border:1px solid rgba(198,242,78,0.35)}
+  .chart-expiry-chips button{flex:1;min-width:44px;padding:4px 6px;font:500 11px var(--sans,'Satoshi',sans-serif);background:#161c26;border:1px solid #2b3545;border-radius:5px;color:#8b9bb0;cursor:pointer}
+  .chart-expiry-chips button:hover{color:#34d399;border-color:#22c55e}
+  .chart-side{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chart-side button{padding:8px;background:#161c26;border:1px solid #2b3545;border-radius:7px;color:#8b9bb0;cursor:pointer;font:600 12.5px var(--sans,'Satoshi',sans-serif)}
+  .chart-side button.call-active{border-color:#22c55e;color:#34d399;background:rgba(34,197,94,.14)}.chart-side button.put-active{border-color:#ff5a65;color:#ff7a84;background:rgba(255,90,101,.14)}
+  .chart-size-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;background:#10141b;padding:3px;border-radius:7px;border:1px solid #2b3545}
+  .chart-size-mode button{padding:5px 6px;border:0;border-radius:5px;background:transparent;color:#8b9bb0;font:600 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer}
+  .chart-size-mode button.active{background:rgba(34,197,94,0.16);color:#34d399;border:1px solid rgba(34,197,94,0.35)}
   .chart-size-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:8px;align-items:end;margin-top:6px}
   .chart-size-grid label{margin:0 0 4px}
-  .chart-size-grid input.primary-size{border-color:#c6f24e;background:#141e24}
+  .chart-size-grid input.primary-size{border-color:#22c55e;background:#131d22}
   .chart-usd-chips{display:flex;gap:4px;margin-top:5px}
-  .chart-usd-chips button{flex:1;padding:3px 5px;font:10.5px 'Geist Mono',ui-monospace,monospace;background:#12191f;border:1px solid #2c3642;border-radius:4px;color:#a8afb7;cursor:pointer}
-  .chart-usd-chips button:hover{color:#c6f24e;border-color:#c6f24e}
-  .chart-editor .chart-quote{font:12.5px 'Geist Mono',ui-monospace,monospace;margin-top:8px;height:auto;flex-shrink:0;line-height:1.45;color:#f4ede4}
-  .chart-cost-card{background:#0e151c;border:1px solid #26323f;border-radius:7px;padding:9px 10px;margin-top:4px;box-sizing:border-box}
+  .chart-usd-chips button{flex:1;padding:4px 6px;font:500 11px var(--sans,'Satoshi',sans-serif);background:#161c26;border:1px solid #2b3545;border-radius:5px;color:#8b9bb0;cursor:pointer}
+  .chart-usd-chips button:hover{color:#34d399;border-color:#22c55e}
+  .chart-editor .chart-quote{font:500 12.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;margin-top:8px;height:auto;flex-shrink:0;line-height:1.45;color:#f1f5f9}
+  .chart-cost-card{background:#10141b;border:1px solid #242e3d;border-radius:8px;padding:10px 11px;margin-top:4px;box-sizing:border-box}
   .chart-cost-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
-  .chart-cost-usd{font-size:15px;font-weight:700;color:#c6f24e;line-height:1.25}
-  .chart-cost-sub{font-size:11px;color:#9aa3ad;line-height:1.45;word-break:break-word}
+  .chart-cost-usd{font-size:15px;font-weight:700;color:#f1f5f9;line-height:1.25}
+  .chart-cost-sub{font-size:11.5px;color:#8b9bb0;line-height:1.45;word-break:break-word}
   .cost-tip-wrap{position:relative;display:inline-flex;align-items:center;flex-shrink:0}
-  .cost-tip-trigger{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:rgba(198,242,78,0.1);border:1px solid rgba(198,242,78,0.32);color:#c6f24e;font:500 10.5px 'Geist Mono',monospace;cursor:help;user-select:none;white-space:nowrap}
-  .cost-tip-box{display:none;position:absolute;right:0;bottom:calc(100% + 7px);width:268px;z-index:45;background:#0b1117;border:1px solid #3a4959;border-radius:8px;padding:10px 11px;box-shadow:0 14px 34px rgba(0,0,0,0.82);font:11px 'Geist Mono',monospace;color:#f4ede4;line-height:1.45}
+  .cost-tip-trigger{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.34);color:#34d399;font:600 10.5px var(--sans,'Satoshi',sans-serif);cursor:help;user-select:none;white-space:nowrap}
+  .cost-tip-box{display:none;position:absolute;right:0;bottom:calc(100% + 7px);width:272px;z-index:45;background:#10141b;border:1px solid #2c3646;border-radius:8px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,0.85);font:500 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;color:#f1f5f9;line-height:1.45}
   .cost-tip-wrap:hover .cost-tip-box,.cost-tip-wrap:focus-within .cost-tip-box{display:block}
   .cost-tip-row{display:flex;justify-content:space-between;gap:8px;padding:2.5px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
   .cost-tip-row:last-child{border-bottom:0;padding-top:5px;font-weight:600}
-  .cost-tip-row span{color:#9aa3ad}
-  .chart-bal-row{display:flex;justify-content:space-between;align-items:center;font:11px 'Geist Mono',monospace;color:#9aa3ad;margin-top:6px;padding:4px 2px;flex-shrink:0}
-  .chart-bal-warn{margin-top:6px;padding:8px 9px;border-radius:6px;background:rgba(229,72,77,0.12);border:1px solid rgba(229,72,77,0.45);color:#ffb3b6;font:11px var(--sans,'Geist',sans-serif);line-height:1.4;flex-shrink:0}
+  .cost-tip-row span{color:#8b9bb0}
+  .chart-bal-row{display:flex;justify-content:space-between;align-items:center;font:500 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;color:#8b9bb0;margin-top:6px;padding:4px 2px;flex-shrink:0}
+  .chart-bal-warn{margin-top:6px;padding:8px 9px;border-radius:6px;background:rgba(255,90,101,0.12);border:1px solid rgba(255,90,101,0.45);color:#ffb3b6;font:11.5px var(--sans,'Satoshi',sans-serif);line-height:1.4;flex-shrink:0}
   .chart-bal-warn[hidden]{display:none}
-  .chart-bal-topup{margin-top:6px;width:100%;padding:6px 8px;border-radius:5px;border:1px solid #5fc39c;background:rgba(95,195,156,0.15);color:#5fc39c;font:600 11px 'Geist Mono',monospace;cursor:pointer}
-  .chart-bal-topup:hover{background:#5fc39c;color:#04100b}
-  .chart-submit{width:100%;padding:11px;background:#c6f24e;color:#101418;border:0;border-radius:6px;font:700 13px var(--sans,'Geist',system-ui,sans-serif);cursor:pointer;margin-top:6px;flex-shrink:0}.chart-submit:disabled{opacity:.42;cursor:not-allowed;background:#2a3440;color:#9aa3ad}
-  .chart-submit.insufficient{background:rgba(229,72,77,0.18);color:#ff9ea2;border:1px solid rgba(229,72,77,0.45);opacity:1}
-  .chart-close{width:100%;padding:7px;background:transparent;border:0;color:#8b9099;cursor:pointer;font:12px var(--sans,'Geist',system-ui,sans-serif);flex-shrink:0}
-  .chart-message{font-family:var(--sans,'Geist',system-ui,sans-serif);font-size:11px;color:#a8afb7;line-height:1.45;min-height:16px;margin:4px 0 0;flex-shrink:0}.chart-nearest{width:100%;margin-top:6px;white-space:normal;font-size:11px;padding:5px 8px;flex-shrink:0}
-  .expiry-line{stroke:rgba(243,239,230,.4);stroke-width:1;transition:stroke .15s}.expiry-wall:hover .expiry-line{stroke:#f4ede4;stroke-width:2}
-  .chart-expiry-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:rgba(198,242,78,.09);border:1px solid rgba(198,242,78,.28);color:#c6f24e;font:500 11px 'Geist Mono',monospace;white-space:nowrap}
-  .chart-custom-expiry{display:flex;align-items:center;gap:4px;font:11px 'Geist Mono',monospace;color:#a8afb7}
-  .chart-custom-expiry input{width:54px;padding:5px 6px;border:1px solid #2a3441;border-radius:5px;background:#12191f;color:#f4ede4;font:11px 'Geist Mono',monospace}
-  .chart-positions-panel{border:1px solid #1f2933;border-radius:6px;background:#0c1218;padding:8px 12px;margin-top:4px}
-  .chart-positions-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;font:12px 'Geist Mono',monospace}
-  .chart-positions-head b{color:#f4ede4;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .chart-bal-topup{margin-top:6px;width:100%;padding:6px 8px;border-radius:6px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#34d399;font:600 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer}
+  .chart-bal-topup:hover{background:#22c55e;color:#041309}
+  .chart-submit{width:100%;padding:11px;background:#f8fafc;color:#0b0e13;border:0;border-radius:8px;font:600 13px var(--sans,'Satoshi',system-ui,sans-serif);cursor:pointer;margin-top:6px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.25)}.chart-submit:disabled{opacity:.45;cursor:not-allowed;background:#1c2430;color:#8b9bb0;box-shadow:none}
+  .chart-submit.insufficient{background:rgba(255,90,101,0.18);color:#ff9ea2;border:1px solid rgba(255,90,101,0.45);opacity:1}
+  .chart-close{width:100%;padding:7px;background:transparent;border:0;color:#8b9bb0;cursor:pointer;font:500 12px var(--sans,'Satoshi',system-ui,sans-serif);flex-shrink:0}
+  .chart-message{font-family:var(--sans,'Satoshi',system-ui,sans-serif);font-size:11.5px;color:#8b9bb0;line-height:1.45;min-height:16px;margin:4px 0 0;flex-shrink:0}.chart-nearest{width:100%;margin-top:6px;white-space:normal;font-size:11.5px;padding:5px 8px;flex-shrink:0}
+  .expiry-line{stroke:rgba(241,245,249,.4);stroke-width:1;transition:stroke .15s}.expiry-wall:hover .expiry-line{stroke:#f1f5f9;stroke-width:2}
+  .chart-expiry-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#34d399;font:600 11.5px var(--sans,'Satoshi',sans-serif);white-space:nowrap}
+  .chart-custom-expiry{display:flex;align-items:center;gap:4px;font:500 11.5px var(--sans,'Satoshi',sans-serif);color:#8b9bb0}
+  .chart-custom-expiry input{width:54px;padding:5px 6px;border:1px solid #2b3545;border-radius:6px;background:#161c26;color:#f1f5f9;font:600 11.5px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums}
+  .chart-positions-panel{border:1px solid #1f2733;border-radius:8px;background:#10141b;padding:8px 12px;margin-top:4px}
+  .chart-positions-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;font:500 12px var(--sans,'Satoshi',sans-serif)}
+  .chart-positions-head b{color:#f1f5f9;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
   .chart-pos-tabs{display:inline-flex;gap:4px}
-  .chart-pos-tabs button{background:#12191f;border:1px solid #27323f;color:#9aa3ad;border-radius:4px;padding:3px 9px;font:600 11px 'Geist Mono',monospace;cursor:pointer}
-  .chart-pos-tabs button.active{background:rgba(198,242,78,.12);color:#c6f24e;border-color:rgba(198,242,78,.38)}
-  .chart-positions-summary{display:flex;gap:14px;color:#a8afb7;font-size:11px;flex-wrap:wrap}
+  .chart-pos-tabs button{background:#161c26;border:1px solid #2b3545;color:#8b9bb0;border-radius:6px;padding:4px 10px;font:600 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer}
+  .chart-pos-tabs button.active{background:rgba(34,197,94,.14);color:#34d399;border-color:rgba(34,197,94,.38)}
+  .chart-positions-summary{display:flex;gap:14px;color:#8b9bb0;font-size:11.5px;flex-wrap:wrap}
   .chart-positions-table-wrap{overflow-x:auto;max-height:155px;overflow-y:auto}
-  .chart-positions-table{width:100%;border-collapse:collapse;font:11px 'Geist Mono',monospace;text-align:left}
-  .chart-positions-table th{color:#7d8792;font-weight:500;padding:5px 8px;border-bottom:1px solid #1b242c;white-space:nowrap}
-  .chart-positions-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);color:#e4dfd7;white-space:nowrap}
-  .chart-positions-table tr:hover td{background:rgba(255,255,255,.02)}
-  .chart-pos-badge{display:inline-block;padding:2px 6px;border-radius:3px;font-weight:600;font-size:10px}
-  .chart-pos-badge.call{background:rgba(198,242,78,.14);color:#c6f24e;border:1px solid rgba(198,242,78,.35)}
-  .chart-pos-badge.put{background:rgba(229,72,77,.14);color:#e5484d;border:1px solid rgba(229,72,77,.35)}
-  .chart-pos-btn{background:#162029;border:1px solid #2c3844;color:#d6d0c4;border-radius:4px;padding:3px 8px;font:11px 'Geist Mono',monospace;cursor:pointer;margin-right:4px}
-  .chart-pos-btn:hover{border-color:#c6f24e;color:#c6f24e}
-  .chart-pos-btn.close:hover{border-color:#e5484d;color:#e5484d}
-  @media(max-width:800px){.chart-workspace,.chart-workspace.editing{grid-template-columns:minmax(0,1fr)}.chart-editor{border-left:0;border-top:1px solid #242a31;padding:14px 0 0}.chart-stage{min-height:240px;flex:1}.chart-workspace.editing .chart-stage{position:sticky;top:0;height:220px;align-self:start;z-index:2;background:#090e11}.chart-hud{width:100%;margin:0}.chart-container{padding:10px}}
+  .chart-positions-table{width:100%;border-collapse:collapse;font:500 12px var(--sans,'Satoshi',sans-serif);font-variant-numeric:tabular-nums;text-align:left}
+  .chart-positions-table th{color:#8b9bb0;font-weight:500;padding:6px 8px;border-bottom:1px solid #1f2733;white-space:nowrap;font-size:11.5px}
+  .chart-positions-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);color:#f1f5f9;white-space:nowrap}
+  .chart-positions-table tr:hover td{background:rgba(255,255,255,.025)}
+  .chart-pos-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-weight:600;font-size:10.5px}
+  .chart-pos-badge.call{background:rgba(34,197,94,.14);color:#34d399;border:1px solid rgba(34,197,94,.35)}
+  .chart-pos-badge.put{background:rgba(255,90,101,.14);color:#ff7a84;border:1px solid rgba(255,90,101,.35)}
+  .chart-pos-btn{background:#161c26;border:1px solid #2b3545;color:#f1f5f9;border-radius:5px;padding:3px 9px;font:500 11.5px var(--sans,'Satoshi',sans-serif);cursor:pointer;margin-right:4px}
+  .chart-pos-btn:hover{border-color:#22c55e;color:#34d399}
+  .chart-pos-btn.close:hover{border-color:#ff5a65;color:#ff5a65}
+  @media(max-width:800px){.chart-workspace,.chart-workspace.editing{grid-template-columns:minmax(0,1fr)}.chart-editor{border-left:0;border-top:1px solid #1f2733;padding:14px 0 0}.chart-stage{min-height:240px;flex:1}.chart-workspace.editing .chart-stage{position:sticky;top:0;height:220px;align-self:start;z-index:2;background:#0b0e13}.chart-hud{width:100%;margin:0}.chart-container{padding:10px}}
   </style><div class="chart-container">
   <div class="chart-stats" id="chart-stats" aria-live="polite"></div>
   <div class="chart-nav"><div class="chart-group" id="chart-assets"></div><div class="chart-group" id="chart-intervals"></div>
@@ -1324,7 +1324,7 @@ function refreshBalanceState() {
 
   const avail = getAvailableBalance();
   availEl.textContent = `${money(avail)} USDT`;
-  availEl.style.color = avail > 0 ? "#5fc39c" : "#e5484d";
+  availEl.style.color = avail > 0 ? "#5fc39c" : "#ff5a65";
 
   if (!latestQuote) {
     if (warnEl) {
@@ -1452,12 +1452,12 @@ async function quote() {
           <div class="cost-tip-wrap" tabindex="0" aria-label="View full cost breakdown">
             <span class="cost-tip-trigger">ⓘ Breakdown</span>
             <div class="cost-tip-box" role="tooltip">
-              <div style="font-weight:700;color:#c6f24e;margin-bottom:5px;border-bottom:1px solid #26323f;padding-bottom:4px">Order Cost &amp; Payoff Components</div>
+              <div style="font-weight:700;color:#34d399;margin-bottom:5px;border-bottom:1px solid #26323f;padding-bottom:4px">Order Cost &amp; Payoff Components</div>
               <div class="cost-tip-row"><span>Option Spread Fair Value (${fmtQty(effQty)}×${money(midUnit)})</span><b>${money(midTotal)}</b></div>
               <div class="cost-tip-row"><span>LP Pool Margin (+50 bps / 0.50%)</span><b>${money(feeTotal)}</b></div>
               <div class="cost-tip-row"><span>Buy Price per Contract</span><b>${money(unitCost)} USDT</b></div>
               <div class="cost-tip-row"><span>On-Chain Execution / Gas Fee</span><b style="color:#5fc39c">$0.00</b></div>
-              <div class="cost-tip-row"><span>Total USDT Cost (Max Loss)</span><b style="color:#c6f24e">${money(totalCost)} USDT</b></div>
+              <div class="cost-tip-row"><span>Total USDT Cost (Max Loss)</span><b style="color:#34d399">${money(totalCost)} USDT</b></div>
               <div class="cost-tip-row"><span>Vault Locked Payout (${fmtQty(effQty)}×${money(bounds.high - bounds.low)})</span><b>${money(maxPayout)}</b></div>
               <div class="cost-tip-row"><span>Max Net Profit at Expiry</span><b style="color:#5fc39c">+${money(maxNetProfit)} (+${maxRoiPct.toFixed(0)}%)</b></div>
             </div>
@@ -1822,7 +1822,7 @@ function wireGestures() {
       if (wasMoved && draft && draft.price > 0) {
         clearTimeout(draftDragQuoteTimer);
         editDraft();
-        $("o-status").innerHTML = `<span style="color:#c6f24e">✓ Adjusted pending order: Strike ${money(draft.price)} · Expiry ${expiry ? `${date(expiry / 1e6)} ${tzLabel()}` : ""}</span>`;
+        $("o-status").innerHTML = `<span style="color:#34d399">✓ Adjusted pending order: Strike ${money(draft.price)} · Expiry ${expiry ? `${date(expiry / 1e6)} ${tzLabel()}` : ""}</span>`;
       } else if (!wasMoved && inside(p) && view) {
         openEditor(priceAt(p.y));
       }
@@ -2082,11 +2082,11 @@ function renderPositionsPanel() {
   if (bottomPanelTab === "history") {
     if (!allClosed.length) {
       summaryEl.textContent = "0 closed or expired trades for this account yet";
-      bodyEl.innerHTML = `<div style="color:#7d8792;font:11px 'Geist Mono',ui-monospace,monospace;padding:4px 2px">No expired or closed trades yet. When a position expires or is closed back to the pool, it is permanently recorded here.</div>`;
+      bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'Satoshi',sans-serif);padding:4px 2px">No expired or closed trades yet. When a position expires or is closed back to the pool, it is permanently recorded here.</div>`;
       return;
     }
     const totalRealised = allClosed.reduce((acc: number, c: any) => acc + Number(c.pnl || 0), 0);
-    const rColor = totalRealised >= 0 ? "#c6f24e" : "#e5484d";
+    const rColor = totalRealised >= 0 ? "#34d399" : "#ff5a65";
     summaryEl.innerHTML = `<span><b>${allClosed.length}</b> Settled / Closed Trade${allClosed.length === 1 ? "" : "s"}</span><span>Realised P&amp;L: <b style="color:${rColor}">${totalRealised >= 0 ? "+" : ""}${money(totalRealised)} USDT</b></span>`;
 
     const table = document.createElement("table");
@@ -2105,7 +2105,7 @@ function renderPositionsPanel() {
     for (const row of allClosed) {
       const tr = document.createElement("tr");
       const pnl = Number(row.pnl ?? 0);
-      const pnlCls = pnl >= 0 ? "#c6f24e" : "#e5484d";
+      const pnlCls = pnl >= 0 ? "#34d399" : "#ff5a65";
       const timeMs = Number(row.atMs || (row.expiryNs ? Number(row.expiryNs) / 1e6 : 0));
       const timeStr = timeMs > 0 ? `${date(timeMs)} ${tzLabel()}` : String(row.at || "—");
       tr.innerHTML = `
@@ -2129,7 +2129,7 @@ function renderPositionsPanel() {
     summaryEl.textContent = allClosed.length
       ? `0 open positions · ${allClosed.length} settled/expired trade${allClosed.length === 1 ? "" : "s"} in Trade History tab`
       : "0 open positions · Click any price on the chart or enter any strike in New Order to open a position";
-    bodyEl.innerHTML = `<div style="color:#7d8792;font:11px 'Geist Mono',ui-monospace,monospace;padding:4px 2px">No open positions right now.${allClosed.length ? ` Click <b>Trade History (${allClosed.length})</b> above to view your expired &amp; settled trades.` : " Positions you open appear both here and as clickable bounded horizontal spread lines on the chart."}</div>`;
+    bodyEl.innerHTML = `<div style="color:#7d8792;font:11px var(--sans,'Satoshi',sans-serif);padding:4px 2px">No open positions right now.${allClosed.length ? ` Click <b>Trade History (${allClosed.length})</b> above to view your expired &amp; settled trades.` : " Positions you open appear both here and as clickable bounded horizontal spread lines on the chart."}</div>`;
     return;
   }
 
@@ -2137,7 +2137,7 @@ function renderPositionsPanel() {
   const totalCost = allOpen.reduce((acc: number, p: any) => acc + Number(p.cost || 0), 0);
   const totalMaxPayout = allOpen.reduce((acc: number, p: any) => acc + Number(p.maxPayout || 0), 0);
   const totalPnl = allOpen.reduce((acc: number, p: any) => acc + Number(p.open || 0), 0);
-  const pnlColor = totalPnl >= 0 ? "#c6f24e" : "#e5484d";
+  const pnlColor = totalPnl >= 0 ? "#34d399" : "#ff5a65";
   summaryEl.innerHTML = `<span><b>${allOpen.length}</b> Active</span><span>Contracts: <b>${fmtQty(totalContracts)}</b></span><span>Total Size (Cost): <b>${money(totalCost)} USDT</b> (Max Payout <b>${money(totalMaxPayout)}</b>)</span><span>Unrealized P&L: <b style="color:${pnlColor}">${totalPnl >= 0 ? "+" : ""}${money(totalPnl)}</b></span>`;
 
   const table = document.createElement("table");
@@ -2160,7 +2160,7 @@ function renderPositionsPanel() {
     const breakEvenPx = computePositionBreakEven(pos);
     const expMs = Number(pos.expiryNs) / 1e6;
     const pnl = Number(pos.open ?? 0);
-    const pnlCls = pnl >= 0 ? "#c6f24e" : "#e5484d";
+    const pnlCls = pnl >= 0 ? "#34d399" : "#ff5a65";
     const countdown = formatCountdown(expMs - Date.now());
     const contracts = Math.max(0.0001, Number(pos.contracts || 1));
     const unitExit = Number(pos.exitUnit ?? pos.mark ?? Number(pos.value ?? 0) / contracts);
@@ -2172,7 +2172,7 @@ function renderPositionsPanel() {
       <td><b>${money(Number(pos.cost ?? 0))} USDT</b> <span style="color:#8b9099">/ Max ${money(Number(pos.maxPayout ?? 0))}</span></td>
       <td><b>${money(totalExit)}</b> <span style="color:#8b9099">(${money(unitExit)}/ct)</span></td>
       <td style="color:${pnlCls};font-weight:600">${pnl >= 0 ? "+" : ""}${money(pnl)}</td>
-      <td>${date(expMs)} ${tzLabel()} <span style="color:#c6f24e">(${countdown})</span></td>
+      <td>${date(expMs)} ${tzLabel()} <span style="color:#34d399">(${countdown})</span></td>
       <td></td>
     `;
     const actionCell = tr.lastElementChild as HTMLElement;
@@ -2256,7 +2256,7 @@ function draw() {
     svg.append(
       node(
         "text",
-        { x: 20, y: 80, fill: "#8b9099", "font-size": 13, "font-family": "Geist Mono,monospace" },
+        { x: 20, y: 80, fill: "#8b9099", "font-size": 13, "font-family": "Satoshi, Plus Jakarta Sans, sans-serif" },
         "Loading price history…",
       ),
     );
@@ -2321,7 +2321,7 @@ function draw() {
           y: y + 4,
           fill: "#8b9099",
           "font-size": 11,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         price.toLocaleString("en-US", { maximumFractionDigits: 4 }),
       ),
@@ -2350,7 +2350,7 @@ function draw() {
           "text-anchor": j === 0 ? "start" : j === 4 ? "end" : "middle",
           fill: "#8b9099",
           "font-size": 11,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         timeSpan > 86400000 ? `${date(t)} ${tzLabel()}` : `${label}${j === 4 ? ` (${tzLabel()})` : ""}`,
       ),
@@ -2401,7 +2401,7 @@ function draw() {
     );
     for (const c of visible) {
       const x = xAt(c.time),
-        color = c.close >= c.open ? "#c6f24e" : "#e5484d";
+        color = c.close >= c.open ? "#34d399" : "#ff5a65";
       layer.append(
         node("line", {
           x1: x,
@@ -2611,7 +2611,7 @@ function draw() {
               y: beTagY + 10.5,
               fill: posBeColor,
               "font-size": 9.5,
-              "font-family": "Geist Mono,monospace",
+              "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
             },
             beText,
           ),
@@ -2677,7 +2677,7 @@ function draw() {
             "text-anchor": "end",
             fill: posColor,
             "font-size": 10,
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           `Ends ${date(posExpiryMs)} ${tzLabel()}`,
         ),
@@ -2718,7 +2718,7 @@ function draw() {
             y: badgeY - 4,
             fill: posColor,
             "font-size": 10.5,
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           labelText,
         ),
@@ -2755,7 +2755,7 @@ function draw() {
     const liveY = yAt(beacon);
     const liveCandle = candles.at(-1);
     const isUp = !liveCandle || liveCandle.close >= liveCandle.open;
-    const liveColor = isUp ? "#c6f24e" : "#e5484d";
+    const liveColor = isUp ? "#34d399" : "#ff5a65";
     layer.append(
       node("line", {
         x1: plot.left,
@@ -2796,7 +2796,7 @@ function draw() {
             fill: "#090e11",
             "font-size": 11,
             "font-weight": "700",
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           money(beacon),
         ),
@@ -2809,7 +2809,7 @@ function draw() {
             y: liveY + 10,
             fill: "#090e11",
             "font-size": 9.5,
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           countdownStr,
         ),
@@ -2830,7 +2830,7 @@ function draw() {
   if (inspectedCandle) {
     const chg = inspectedCandle.close - inspectedCandle.open;
     const chgPct = inspectedCandle.open > 0 ? (chg / inspectedCandle.open) * 100 : 0;
-    const ohlcColor = chg >= 0 ? "#c6f24e" : "#e5484d";
+    const ohlcColor = chg >= 0 ? "#34d399" : "#ff5a65";
     const emaVal = indicatorCache?.ema.at(-1);
     const vwapVal = indicatorCache?.vwap.at(-1);
     const headerStr = `O ${money(inspectedCandle.open)}   H ${money(inspectedCandle.high)}   L ${money(inspectedCandle.low)}   C ${money(inspectedCandle.close)} (${chg >= 0 ? "+" : ""}${chgPct.toFixed(2)}%)   Vol ${inspectedCandle.volume.toFixed(2)}${indicators.ema && emaVal ? `   EMA20 ${money(emaVal)}` : ""}${indicators.vwap && vwapVal ? `   VWAP ${money(vwapVal)}` : ""}`;
@@ -2842,7 +2842,7 @@ function draw() {
           y: plot.top - 10,
           fill: ohlcColor,
           "font-size": 10.5,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         headerStr,
       ),
@@ -2890,9 +2890,9 @@ function draw() {
             x: Math.max(plot.left + 160, Math.min(plot.right - 130, x)),
             y: plot.top + 13,
             "text-anchor": "middle",
-            fill: isUtc0Daily || customExpiryMinutes !== null ? "#c6f24e" : "#a8afb7",
+            fill: isUtc0Daily || customExpiryMinutes !== null ? "#34d399" : "#a8afb7",
             "font-size": 10.5,
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           expiryBannerText,
         ),
@@ -2907,7 +2907,7 @@ function draw() {
             "text-anchor": "end",
             fill: "#8b9099",
             "font-size": 10.5,
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           `${expiryBannerText} →`,
         ),
@@ -3030,7 +3030,7 @@ function draw() {
           y: labelY - 7,
           fill: color,
           "font-size": 11,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         draftLabelText,
       ),
@@ -3055,7 +3055,7 @@ function draw() {
             fill: "#090e11",
             "font-size": 11,
             "font-weight": "700",
-            "font-family": "Geist Mono,monospace",
+            "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
           },
           money(draft.price),
         ),
@@ -3091,7 +3091,7 @@ function draw() {
           y: crosshair.y - 5,
           fill: "#f4ede4",
           "font-size": 11,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         money(priceAt(crosshair.y)),
       ),
@@ -3117,7 +3117,7 @@ function draw() {
           y: plot.top + 28,
           fill: "#a8afb7",
           "font-size": 12,
-          "font-family": "Geist Mono,monospace",
+          "font-family": "Satoshi, Plus Jakarta Sans, sans-serif",
         },
         notice,
       ),

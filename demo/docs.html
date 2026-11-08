@@ -3,24 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Optionality Docs — Protocol Architecture, Math & Smart Contracts</title>
+<title>Optionality Docs | Protocol Architecture, Math & Smart Contracts</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&f[]=general-sans@400,500,600,700&f[]=cabinet-grotesk@500,700,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/wallet.css">
 <style>
+  @font-face{font-family:"Geist";src:url("/fonts/geist-latin.woff2") format("woff2");font-weight:400 700;font-display:swap}
+  @font-face{font-family:"Geist Mono";src:url("/fonts/geist-mono-latin.woff2") format("woff2");font-weight:400 600;font-display:swap}
   :root {
-    --bg: #080c10;
-    --bg-elev: #0d131a;
-    --bg-card: #111922;
-    --line: #1e2936;
-    --ink: #f3efe6;
-    --muted: #98a3b0;
-    --dim: #667382;
-    --accent: #c6f24e;
-    --accent-dim: rgba(198, 242, 78, 0.12);
-    --green: #5fc39c;
-    --red: #e5484d;
-    --blue: #5aa2ff;
-    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --bg: #0b0e13;
+    --bg-elev: #10141b;
+    --bg-card: #161c26;
+    --line: #1f2733;
+    --ink: #f1f5f9;
+    --muted: #94a3b8;
+    --dim: #64748b;
+    --accent: #34d399;
+    --accent-dim: rgba(34, 197, 94, 0.14);
+    --green: #34d399;
+    --red: #ff5a65;
+    --blue: #38bdf8;
+    --sans: "Satoshi", "Plus Jakarta Sans", "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; background: var(--bg); color: var(--ink); font-family: var(--sans); }
@@ -465,7 +472,7 @@ Mid_PutSpread(L, H) = (H - L) - Mid_CallSpread(L, H)</code></pre>
     <section class="docs-section" id="fee-schedule">
       <h2>7. Fee &amp; Margin Schedule (`core::fees`) <span class="sec-tag">Economics</span></h2>
       <p>
-        There are no separate gas surcharges or hidden ticket fees. All venue compensation is embedded transparently inside the pool quote using integer ceiling/floor arithmetic in `crates/core/src/fees.rs`:
+        There are no separate gas surcharges or hidden ticket fees. All venue compensation is embedded transparently inside the pool quote using integer ceiling/floor arithmetic in <code>core/src/fees.rs</code>:
       </p>
       <div class="docs-table-wrap">
         <table class="docs-table">
