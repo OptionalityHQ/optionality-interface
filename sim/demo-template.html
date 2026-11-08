@@ -1147,7 +1147,8 @@
   }
   .rolling-number-static {
     display: inline-block;
-    line-height: 1.1;
+    vertical-align: baseline;
+    line-height: 1.12em;
     color: var(--rolling-ink, #f2f2f2);
   }
   .rolling-number-digit-slot {
@@ -1156,7 +1157,7 @@
     min-width: 0.58em;
     height: 1.12em;
     overflow: hidden;
-    vertical-align: bottom;
+    vertical-align: baseline;
     line-height: 1.12em;
     text-align: center;
   }
@@ -1170,12 +1171,12 @@
     will-change: transform, opacity;
   }
   .rolling-number-digit-animated {
-    animation: rolling-number-roll 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: rolling-number-roll 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   @keyframes rolling-number-roll {
     0% {
-      transform: translateY(calc(var(--roll-dir, -1) * 58%));
-      opacity: 0.25;
+      transform: translateY(calc(var(--roll-dir, -1) * 24%));
+      opacity: 0.55;
     }
     100% {
       transform: translateY(0);
@@ -3029,12 +3030,17 @@ function nftAvatarHtml(seedOrUrl, sizeCls = "", extraLabel = "") {
 }
 
 const rollingPrevMap = new WeakMap();
+const rollingLastTsMap = new WeakMap();
 function renderRollingNumber(elOrId, formattedText) {
   const el = typeof elOrId === "string" ? $(elOrId) : elOrId;
   if (!el) return;
   const nextStr = String(formattedText ?? "");
   const prevStr = rollingPrevMap.get(el);
   if (prevStr === nextStr && el.querySelector(".rolling-number")) return;
+  const nowPerf = performance.now();
+  const lastTs = rollingLastTsMap.get(el) || 0;
+  if (prevStr && nowPerf - lastTs < 280 && el.querySelector(".rolling-number")) return;
+  rollingLastTsMap.set(el, nowPerf);
   rollingPrevMap.set(el, nextStr);
   const prevChars = prevStr ? Array.from(prevStr) : [];
   const nextChars = Array.from(nextStr);
