@@ -1147,48 +1147,39 @@
   }
   .rolling-number-static {
     display: inline-block;
-    line-height: 1.05;
+    line-height: 1.1;
     color: var(--rolling-ink, #f2f2f2);
   }
   .rolling-number-digit-slot {
     position: relative;
     display: inline-block;
-    width: 0.62em;
-    height: 1.05em;
+    min-width: 0.58em;
+    height: 1.12em;
     overflow: hidden;
-    vertical-align: -0.08em;
-    line-height: 1.05em;
+    vertical-align: bottom;
+    line-height: 1.12em;
+    text-align: center;
   }
   .rolling-number-digit {
     position: relative;
     display: block;
     width: 100%;
-    height: 1.05em;
-    line-height: 1.05em;
-    color: transparent;
-    user-select: none;
-    will-change: transform;
-  }
-  .rolling-number-digit::before {
-    content: "0\a 1\a 2\a 3\a 4\a 5\a 6\a 7\a 8\a 9";
-    position: absolute;
-    left: 0;
-    top: calc(var(--rolling-digit, 0) * -1.05em);
-    width: 100%;
-    white-space: pre;
-    line-height: 1.05em;
+    height: 1.12em;
+    line-height: 1.12em;
     color: var(--rolling-ink, #f2f2f2);
-    text-align: center;
+    will-change: transform, opacity;
   }
   .rolling-number-digit-animated {
-    animation: rolling-number-roll 0.46s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: rolling-number-roll 0.36s cubic-bezier(0.22, 1, 0.36, 1);
   }
   @keyframes rolling-number-roll {
     0% {
-      transform: translateY(calc((var(--rolling-digit, 0) - var(--rolling-from, 0)) * 1.05em));
+      transform: translateY(calc(var(--roll-dir, -1) * 58%));
+      opacity: 0.25;
     }
     100% {
       transform: translateY(0);
+      opacity: 1;
     }
   }
 
@@ -3054,8 +3045,9 @@ function renderRollingNumber(elOrId, formattedText) {
       const prevCh = prevChars[idx + offset];
       const prevD = prevCh >= "0" && prevCh <= "9" ? Number(prevCh) : d;
       const dir = d === prevD ? "flat" : d > prevD ? "up" : "down";
+      const rollSign = d > prevD ? 1 : -1;
       const animCls = dir === "flat" ? "" : " rolling-number-digit-animated";
-      return `<span class="rolling-number-digit-slot" data-roll="${dir}" style="--rolling-digit:${d};--rolling-from:${prevD}"><span class="rolling-number-digit${animCls}">${ch}</span></span>`;
+      return `<span class="rolling-number-digit-slot" data-roll="${dir}" style="--roll-dir:${rollSign}"><span class="rolling-number-digit${animCls}">${ch}</span></span>`;
     }
     const safeCh = ch === "&" ? "&amp;" : ch === "<" ? "&lt;" : ch === ">" ? "&gt;" : ch;
     return `<span class="rolling-number-static">${safeCh}</span>`;
