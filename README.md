@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="./docs/assets/banner.svg" alt="Optionality Interface Banner" width="100%" />
+<img src="./docs/assets/banner.png" alt="Optionality Interface Banner" width="100%" />
 
 <br />
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://github.com/OptionalityHQ/interface)
-[![NEAR Wallet Selector](https://img.shields.io/badge/Wallet_Selector-v10.1.4-00EC97?style=flat-square&logo=near)](https://github.com/OptionalityHQ/interface)
-[![Tests](https://img.shields.io/badge/Unit_Tests-14%2F14_Passing-success?style=flat-square)](https://github.com/OptionalityHQ/interface)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://github.com/OptionalityHQ/optionality-interface)
+[![NEAR Wallet Selector](https://img.shields.io/badge/Wallet_Selector-v10.1.4-00EC97?style=flat-square&logo=near)](https://github.com/OptionalityHQ/optionality-interface)
+[![Tests](https://img.shields.io/badge/Unit_Tests-14%2F14_Passing-success?style=flat-square)](https://github.com/OptionalityHQ/optionality-interface)
 [![Live App](https://img.shields.io/badge/Live_App-optionality.pro-5fc39c?style=flat-square)](https://optionality.pro)
 
 **Web Trading Terminal, 2D Interactive Positions Chart, NEAR Wallet Selector & Browser E2E Suite for Optionality**
 
-[Launch Web App](https://optionality.pro) · [Protocol Documentation](https://optionality.pro/docs) · [Semantic Ontology](./docs/ONTOLOGY.md) · [Core Repo](https://github.com/OptionalityHQ/core) · [Adapter Repo](https://github.com/OptionalityHQ/adapter)
+[Launch Web App](https://optionality.pro) · [Protocol Documentation](https://optionality.pro/docs) · [Semantic Ontology](./docs/ONTOLOGY.md) · [Core Repo](https://github.com/OptionalityHQ/optionality-core) · [Adapter Repo](https://github.com/OptionalityHQ/optionality-adapter)
 
 </div>
 
@@ -22,14 +22,18 @@
 - **Web Trading Terminal**: [optionality.pro](https://optionality.pro)
 - **Standalone Developer & Protocol Docs**: [optionality.pro/docs](https://optionality.pro/docs)
 - **Interactive Views**:
-  - **Board** — Strike ladder for BTC & ETH Call/Put spreads, live Bid/Ask/IV columns, volatility smile curve, and 3-of-4 oracle committee health panel.
-  - **Chart** — Full-viewport HTML5 Canvas candle/line chart with **2D draggable pending orders** (drag vertically for strike price, horizontally for expiry timestamp), **horizontal Break-Even lines**, custom expiry presets, and dual sizing (**Fractional Contracts** or **USDT Stablecoin Budget**).
-  - **Positions & Trade History** — Real-time mark-to-market PnL, break-even badges, early pool/book close actions, and full expired/settled trade history.
-  - **Strategies** — Multi-leg payoff simulator and custom strike range builder.
-  - **Leaderboard & Private Copy Trading** — CEX-style top trader rankings and 1Click/NEAR Intents confidential copy-trading subscriptions.
+  - **Board**: Strike ladder for BTC & ETH Call/Put spreads, live Bid/Ask/IV columns, volatility smile curve, and 3-of-4 oracle committee health panel.
+  - **Chart**: Full-viewport HTML5 Canvas candle/line chart with **2D draggable pending orders** (drag vertically for strike price, horizontally for expiry timestamp), **horizontal Break-Even lines**, custom expiry presets, and dual sizing (**Fractional Contracts** or **USDT Stablecoin Budget**).
+  - **Positions & Trade History**: Real-time mark-to-market PnL, break-even badges, early pool/book close actions, and full expired/settled trade history.
+  - **Strategies**: Multi-leg payoff simulator and custom strike range builder.
+  - **Leaderboard & Private Copy Trading**: CEX-style top trader rankings and 1Click/NEAR Intents confidential copy-trading subscriptions.
 
 <p align="center">
-  <img src="./docs/assets/architecture.svg" alt="Optionality Interface Architecture" width="900" />
+  <img src="./docs/assets/terminal-preview.png" alt="Optionality Live Trading Terminal" width="900" />
+</p>
+
+<p align="center">
+  <img src="./docs/assets/architecture.png" alt="Optionality Interface Architecture" width="900" />
 </p>
 
 ---
@@ -84,8 +88,8 @@ flowchart LR
 ### 1. Install & Build Static Bundle
 
 ```bash
-git clone https://github.com/OptionalityHQ/interface.git
-cd interface
+git clone https://github.com/OptionalityHQ/optionality-interface.git
+cd optionality-interface
 npm install
 npm run build
 ```
