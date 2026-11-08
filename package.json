@@ -1,19 +1,17 @@
 {
-  "name": "near-mvp",
+  "name": "@optionality/interface",
   "version": "1.0.0",
-  "description": "A fully collateralized, cash-settled **put-spread protection ticket** on NEAR. This is the first-stage implementation of option A in [the hackathon MVP design](../docs/04-near-hackathon-mvp.md). It is built and tested locally against the NEAR sandbox; it is **not deployed** and no wallet or funds were used.",
+  "description": "Optionality Web Trading Terminal, Interactive Canvas Chart, Wallet Selector UI, and Browser E2E Suite",
   "main": "index.js",
   "scripts": {
-    "test": "bash scripts/test.sh",
-    "e2e": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e",
-    "e2e:settle": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e --settle",
-    "e2e:suite": "node sim/suite.mts --url http://127.0.0.1:8790 --out evidence/suite",
-    "video:render": "ts-node render-video.ts"
+    "build": "node sim/build-demo.mjs",
+    "test": "node --test api/test/*.test.ts",
+    "e2e": "node sim/e2e.mts --url http://127.0.0.1:8790 --out evidence/e2e"
   },
   "keywords": [],
-  "author": "",
+  "author": "wDrag <haxorus5224@gmail.com>",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@defuse-protocol/one-click-sdk-typescript": "0.1.26",
     "@near-wallet-selector/core": "10.1.4",
